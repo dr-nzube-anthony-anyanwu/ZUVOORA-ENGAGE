@@ -38,6 +38,7 @@ Claude Code may mark an item complete only after actually verifying it.
 - [x] Service-role secrets never appear in browser bundles. — `npm run check:bundle` scans `.next/static` for secret formats, server env names and the actual local secret values → OK (16 files). Planted fake `sb_secret_` value is detected (exit 1).
 - [x] API test suite. — `pytest` → 45 passed (27 unit + 18 integration against local Supabase); `ruff check .` → all checks passed.
 - [x] Dashboard checks. — `npm run lint`, `npm run typecheck`, `npm run build` exit 0; smoke test: `/dashboard` anonymous → 307 `/login`; forged `/auth/confirm` → `/login`; CSP, X-Frame-Options DENY, nosniff, Referrer-Policy, Permissions-Policy present.
+- [x] Ports moved to API 8073 / dashboard 3073 (ADR-019), 2026-11-21. — Ports confirmed free; app smoke test on new ports OK (health ready, CORS from :3073, /dashboard → /login); pgTAP 57/57, pytest 45 passed, web lint/typecheck, compose config all pass.
 - [ ] CI green on GitHub with the new `database-and-api` job. — Pending first push of Phase 1.
 
 ### Phase 1 exit-gate test mapping

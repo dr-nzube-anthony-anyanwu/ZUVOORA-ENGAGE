@@ -15,9 +15,9 @@ class Settings(BaseSettings):
     app_name: str = "ZUVOORA Engage API"
     app_env: Environment = "development"
     log_level: str = "INFO"
-    api_cors_origins: str = "http://localhost:3000"
+    api_cors_origins: str = "http://localhost:3073"
     # Dashboard base URL, used for auth email redirects (must be in Supabase redirect allow-list).
-    dashboard_url: str = "http://localhost:3000"
+    dashboard_url: str = "http://localhost:3073"
 
     # Supabase (dedicated Engage project). URL is not secret; the secret key is server-only.
     supabase_url: str | None = None

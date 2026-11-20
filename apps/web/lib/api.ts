@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 
 /** Server-side only. The API base URL is not a public value and is never sent to the browser. */
-const API_BASE_URL = process.env.ENGAGE_API_URL ?? "http://127.0.0.1:8000";
+const API_BASE_URL = process.env.ENGAGE_API_URL ?? "http://127.0.0.1:8073";
 
 export type Membership = {
   tenant_id: string;

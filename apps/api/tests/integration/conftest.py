@@ -76,7 +76,7 @@ def client(stack):
         supabase_url=stack["API_URL"],
         supabase_secret_key=stack["SECRET_KEY"],
         database_url=stack["ENGAGE_API_DB_URL"],
-        dashboard_url="http://localhost:3000",
+        dashboard_url="http://localhost:3073",
     )
     db = Database(settings)
     db.open()

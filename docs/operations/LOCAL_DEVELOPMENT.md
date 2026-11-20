@@ -29,7 +29,7 @@ py -3.12 -m venv .venv
 pip install -e ".[dev]"
 ruff check .
 pytest                       # unit tests + integration tests (skipped if the local stack is down)
-uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8073
 ```
 Integration tests create synthetic `@example.com` users and clinics on the local stack and
 delete them afterwards. They refuse to run against a non-localhost Supabase.
@@ -52,7 +52,7 @@ Self-signup is disabled. Create a user in local Studio (Authentication → Add u
 insert into public.platform_admins (user_id, note)
 select id, 'local dev admin' from auth.users where email = 'you@example.com';
 ```
-Sign in at `http://localhost:3000/login`, then set up two-factor authentication at `/mfa`.
+Sign in at `http://localhost:3073/login`, then set up two-factor authentication at `/mfa`.
 Platform actions (create/suspend clinics) require the MFA-verified session.
 
 ## 5. Widget

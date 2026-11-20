@@ -60,14 +60,14 @@ python -m pip install --upgrade pip
 pip install -e ".[dev]"
 pytest
 ruff check .
-uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8073
 ```
 If activation is blocked, for this terminal only:
 ```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\.venv\Scripts\Activate.ps1
 ```
-Health endpoint: `http://127.0.0.1:8000/health/live` (expected `{"status":"ok"}`). Stop with Ctrl+C.
+Health endpoint: `http://127.0.0.1:8073/health/live` (expected `{"status":"ok"}`). Stop with Ctrl+C.
 
 ## 5. Web setup
 In another terminal:
@@ -79,7 +79,7 @@ npm run typecheck
 npm run build
 npm run dev
 ```
-Open `http://localhost:3000`.
+Open `http://localhost:3073`.
 
 ## 6. Accounts — create only when phase is ready
 - GitHub: private repository and Actions (Phase 0).

@@ -25,5 +25,5 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/package.json ./package.json
 COPY --from=deps /app/node_modules ./node_modules
 USER app
-EXPOSE 3000
+EXPOSE 3073
 CMD ["npm", "run", "start"]

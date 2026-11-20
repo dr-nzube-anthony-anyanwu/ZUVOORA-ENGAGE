@@ -57,14 +57,14 @@ py -3.12 -m venv .venv
 pip install -e ".[dev]"
 ruff check .
 pytest                # unit + integration (integration needs the local stack)
-uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8073
 
 # Dashboard (second terminal)
 cd apps\web
 npm ci
 npm run dev
 ```
-API health: `http://127.0.0.1:8000/health/ready` · Dashboard: `http://localhost:3000`.
+API health: `http://127.0.0.1:8073/health/ready` · Dashboard: `http://localhost:3073`.
 
 ## Non-negotiable rules
 - Keep this repository separate from the existing ZUVOORA project.

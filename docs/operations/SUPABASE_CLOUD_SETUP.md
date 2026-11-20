@@ -16,8 +16,8 @@ manager.
   - Minimum password length **12**, require lower/upper case letters and digits.
 - Authentication → Multi-Factor: **TOTP enabled** (enrol + verify).
 - Authentication → URL Configuration:
-  - Site URL: your dashboard URL (for now `http://localhost:3000`).
-  - Redirect URLs: `http://localhost:3000/auth/confirm` (add the staging URL later).
+  - Site URL: your dashboard URL (for now `http://localhost:3073`).
+  - Redirect URLs: `http://localhost:3073/auth/confirm` (add the staging URL later).
 - Authentication → Email Templates → **Invite user**: paste the body of
   `supabase/templates/invite.html` (subject: "You have been invited to ZUVOORA Engage").
 - Note: the built-in email sender is heavily rate-limited. Production email moves to Resend
