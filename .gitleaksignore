@@ -1,0 +1,3 @@
+# Reviewed false positives only. Each entry must name the reviewer reason.
+# 2026-11-20: generic-api-key matched prose in a docs table row ("bounce/complaint handling"); no secret.
+89725b15d235c1f77532d2393d376dbd01aca941:docs/architecture/DEVELOPMENT_BLUEPRINT_FULL.md:generic-api-key:130
