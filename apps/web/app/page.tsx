@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function HomePage() {
   return (
     <main>
@@ -5,13 +7,10 @@ export default function HomePage() {
       <h1>ZUVOORA Engage</h1>
       <span className="status">Development workspace</span>
       <section className="panel">
-        <h2>Welcome to the Engage control centre</h2>
-        <p>This is the initial web application shell. Clinic onboarding, authentication, tenant administration, conversations and analytics will be delivered in later phases.</p>
-        <p>Do not enter real clinic or patient information into this starter screen.</p>
-      </section>
-      <section className="panel">
-        <h2>Build status</h2>
-        <p>Phase 0 starter scaffold. API health endpoint: <code>http://localhost:8000/health/live</code></p>
+        <h2>Clinic administration</h2>
+        <p>Sign in to manage your clinic&apos;s Engage workspace. Access is by invitation only.</p>
+        <p><Link href="/login" className="button">Sign in</Link></p>
+        <p className="hint">Do not enter real patient information into this development environment.</p>
       </section>
     </main>
   );

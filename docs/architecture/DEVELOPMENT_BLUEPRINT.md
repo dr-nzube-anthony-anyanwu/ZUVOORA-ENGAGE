@@ -4,7 +4,7 @@
 The proposed direction is appropriate: independent Engage repository/deployment, dedicated database boundary initially, one multi-tenant SaaS, provider adapters, and API-based future integration with ZUVOORA Core.
 
 ## Repository layout
-`apps/web`, `apps/widget`, `apps/api`, `apps/worker`, `database/migrations`, `docs`, `prompts`, `infra`, `tests`.
+`apps/web`, `apps/widget`, `apps/api`, `apps/worker`, `supabase/migrations` (+ `supabase/tests`), `docs`, `prompts`, `infra`, `tests`.
 
 ## Core request flow
 Widget → public API → tenant/domain validation → conversation → tenant-scoped RAG → server AI gateway → answer/handover. Booking and webhooks flow through separate services and a persistent worker.

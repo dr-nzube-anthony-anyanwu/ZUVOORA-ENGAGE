@@ -1,0 +1,9 @@
+# Never bake local env files or build artefacts into images.
+.env
+.env.*
+!.env.example
+node_modules
+.next
+out
+*.log
+*.tsbuildinfo

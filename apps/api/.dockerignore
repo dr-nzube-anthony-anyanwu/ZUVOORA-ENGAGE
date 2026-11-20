@@ -1,0 +1,12 @@
+# Never bake local env files, virtualenvs or caches into images.
+.env
+.env.*
+!.env.example
+.venv
+venv
+__pycache__
+*.py[cod]
+*.egg-info
+.pytest_cache
+.ruff_cache
+tests

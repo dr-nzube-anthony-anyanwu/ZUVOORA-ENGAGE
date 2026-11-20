@@ -28,7 +28,8 @@ apps/api       FastAPI backend
 apps/web       Next.js dashboard
 apps/widget    Embeddable widget
 apps/worker    Persistent jobs (later phase)
-database       SQL migrations
+supabase       Migrations, pgTAP RLS tests, local Supabase config and email templates
+scripts        Repository tooling (local env generation)
 docs           PRD, architecture, security, commercial and operations
 prompts        Claude Code master and phase prompts
 infra          Deployment configuration
@@ -40,27 +41,30 @@ infra          Deployment configuration
 3. `prompts/MASTER_BUILDER_PROMPT.md`
 4. `CLAUDE.md`
 
-## API quick start (Windows PowerShell)
+## Local quick start (Windows PowerShell, Docker Desktop running)
+Full details: `docs/operations/LOCAL_DEVELOPMENT.md`.
 ```powershell
+# Repository root: local Supabase (Postgres + Auth) and local-only env files
+npm ci
+npm run db:start      # first run downloads ~3 GB of images
+npm run env:local     # writes apps/api/.env and apps/web/.env.local (never overwrites)
+npm run db:test       # pgTAP tenancy/RLS tests
+
+# API
 cd apps\api
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
 pip install -e ".[dev]"
-pytest
+ruff check .
+pytest                # unit + integration (integration needs the local stack)
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
-```
-Health check: `http://127.0.0.1:8000/health/live`
 
-## Web quick start
-```powershell
+# Dashboard (second terminal)
 cd apps\web
-npm install
-npm run lint
-npm run typecheck
+npm ci
 npm run dev
 ```
-Open `http://localhost:3000`.
+API health: `http://127.0.0.1:8000/health/ready` · Dashboard: `http://localhost:3000`.
 
 ## Non-negotiable rules
 - Keep this repository separate from the existing ZUVOORA project.

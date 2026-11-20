@@ -17,6 +17,9 @@
 | ADR-013 | Python 3.12 for API (local venv, Docker, CI) | Accepted (Phase 0, 2026-11-20) |
 | ADR-014 | Web container receives only browser-safe config, never the shared `.env` | Accepted (Phase 0, 2026-11-20) |
 | ADR-015 | Node.js 24 LTS for web, widget, CI and Docker (was 22) | Accepted (Phase 0, 2026-11-20) |
+| ADR-016 | All data access via FastAPI; dedicated `engage_app` DB role; Supabase Data API roles get no table privileges | Accepted (Phase 1, 2026-11-20) |
+| ADR-017 | Local-first Supabase (pinned CLI) for development and CI; migrations in `supabase/migrations` | Accepted (Phase 1, 2026-11-20) |
+| ADR-018 | Invitation-only accounts; platform admins provision clinics and require TOTP MFA (aal2) | Accepted (Phase 1, 2026-11-20) |
 
 ### ADR-011 — Next.js 16
 - **Context:** `eslint.config.mjs` used the Next 16 flat-config entry points, so lint failed on Next 15; Next 15 also pulled a high-severity `postcss` advisory (npm's only fix was Next 16.4.6); the webpack build failed on the exFAT SSD (`EISDIR readlink`).
@@ -42,3 +45,19 @@
 - **Consequences:** local, CI and container runtimes match. Revisit when the next LTS line is adopted; bump `.nvmrc`, Dockerfile tag and `engines` together.
 
 Record context, alternatives, decision and consequences for every major architecture change.
+
+### ADR-016 — Single data path through the API (`engage_app` role)
+- **Context:** Supabase's Data API (PostgREST/GraphQL) runs as `anon`/`authenticated`. If Engage tables were granted to `authenticated`, any signed-in user could write directly with their token, bypassing API authorisation and audit logging. Setting `api.schemas = []` locally did not stop PostgREST serving `public` (verified).
+- **Alternatives:** rely on RLS alone with Data API access (writes unaudited); rely on dashboard "exposed schemas" config (easy to misconfigure, not testable in CI).
+- **Decision:** grant table privileges only to a NOLOGIN `engage_app` role that RLS policies target. The backend logs in as NOINHERIT `engage_api` and per transaction runs `SET LOCAL ROLE engage_app` with verified JWT claims. `anon`, `authenticated` and `service_role` get nothing.
+- **Consequences:** Data API isolation holds regardless of project configuration and is covered by pgTAP and integration tests. A missed role switch fails closed (tested). Cloud setup needs one manual step: set the `engage_api` password.
+
+### ADR-017 — Local-first Supabase
+- **Context:** Phase 1 tests need real Postgres + Auth; cloud projects should not be test targets.
+- **Decision:** Supabase CLI pinned in the root `package.json` (2.122.1, avoiding the 18-day-old 3.x major); `supabase/config.toml` mirrors production auth policy; CI starts an ephemeral local stack. Migration moved from `database/migrations/` to `supabase/migrations/` (never applied anywhere before).
+- **Consequences:** every test runs offline and identically in CI; the cloud project only receives reviewed migrations via `supabase db push`.
+
+### ADR-018 — Invitation-only accounts and MFA-gated platform admins
+- **Context:** clinic accounts carry patient-adjacent data; self-signup adds abuse surface before billing/onboarding exist.
+- **Decision:** public sign-up disabled. Platform admins (active `platform_admins` row **and** `aal2` session) create clinics and invite the owner; owners/admins invite staff. Passwords ≥ 12 chars with mixed case and digits. TOTP optional for clinic staff in Phase 1.
+- **Consequences:** self-serve onboarding is deferred to Phase 5 with billing. Requiring MFA for clinic owners should be revisited before pilot (Phase 6).

@@ -1,4 +1,5 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
+from fastapi.responses import JSONResponse
 
 router = APIRouter(tags=["health"])
 
@@ -9,6 +10,8 @@ async def liveness() -> dict[str, str]:
 
 
 @router.get("/health/ready")
-async def readiness() -> dict[str, str]:
-    # Add database/queue checks before production.
+def readiness(request: Request):
+    db = getattr(request.app.state, "db", None)
+    if db is not None and not db.ping():
+        return JSONResponse({"status": "unavailable"}, status_code=503)
     return {"status": "ready"}

@@ -19,11 +19,15 @@ services:
     build:
       context: ./apps/web
       args:
-        # NEXT_PUBLIC_* values are inlined into browser bundles at build time.
-        NEXT_PUBLIC_API_BASE_URL: "http://localhost:${API_PORT:-8000}"
+        # NEXT_PUBLIC_* values are inlined into browser bundles at build time. Only the public
+        # Supabase URL and publishable key are interpolated from .env; nothing secret.
+        NEXT_PUBLIC_SUPABASE_URL: "${SUPABASE_URL:?set SUPABASE_URL in .env}"
+        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "${SUPABASE_PUBLISHABLE_KEY:?set SUPABASE_PUBLISHABLE_KEY in .env}"
     ports: ["${WEB_PORT:-3000}:3000"]
     environment:
       NODE_ENV: production
+      # Server-side only: the dashboard's server calls the API over the internal network.
+      ENGAGE_API_URL: http://api:8000
     depends_on:
       api:
         condition: service_healthy

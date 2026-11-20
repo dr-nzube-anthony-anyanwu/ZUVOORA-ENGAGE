@@ -25,13 +25,31 @@ Claude Code may mark an item complete only after actually verifying it.
 - Git on exFAT requires `git config --global --add safe.directory D:/technologies/ZUVOORA-ENGAGE` (applied on this machine).
 - pytest emits a Starlette deprecation warning recommending `httpx2` for TestClient; non-blocking.
 - ESLint 9.39.5 reports as no longer supported upstream; plan an ESLint 10 upgrade once `eslint-config-next` supports it.
+- Phase 0 accepted by founder 2026-11-20. Gitleaks finding in run #1 was a reviewed false positive (prose in `DEVELOPMENT_BLUEPRINT_FULL.md:130`); allowlisted by exact fingerprint in `.gitleaksignore`; `gitleaks git` 8.24.3 full-history scan → no leaks.
 
 ## Phase 1
-- [ ] Dedicated Supabase project.
-- [ ] Auth and tenant membership.
-- [ ] Server-side RBAC.
-- [ ] RLS and cross-tenant negative tests.
-- [ ] Audit events.
+- [ ] Dedicated Supabase **cloud** project. — Pending founder (guide: `docs/operations/SUPABASE_CLOUD_SETUP.md`). Everything below verified on the LOCAL stack (Supabase CLI 2.122.1, Postgres 17, Auth with ES256 JWKS).
+- [x] Migrations apply cleanly. — `npx supabase db reset` applies `20261120000001_tenant_foundation.sql` + local seed; `npx supabase db lint --level warning` → no schema errors.
+- [x] Auth and tenant membership. — Invitation-only (self-signup returns `signup_disabled`, tested); password ≥12 mixed case + digit; TOTP MFA enabled; dashboard login/MFA/invite-acceptance/sign-out pages.
+- [x] Server-side session verification. — FastAPI verifies ES256 JWTs via JWKS (iss, aud, exp, iat, sub, role=authenticated, aal); 18 unit tests incl. alg=none, HS256 confusion, tampering, unknown kid, anon/service-role tokens.
+- [x] Server-side RBAC. — Tenant from URL path only; bodies forbid unknown fields; 404 for inaccessible tenants; 403 for insufficient role.
+- [x] RLS and cross-tenant negative tests. — `npx supabase test db` → 57/57 pass. Mutation check: removing the suspended-tenant condition made exactly the 3 suspended-tenant tests fail (now numbered 42–44); restored → pass.
+- [x] Audit events. — Append-only (grants + triggers, even for table owner); written in the same transaction as the action; tested.
+- [x] Service-role secrets never appear in browser bundles. — `npm run check:bundle` scans `.next/static` for secret formats, server env names and the actual local secret values → OK (16 files). Planted fake `sb_secret_` value is detected (exit 1).
+- [x] API test suite. — `pytest` → 45 passed (27 unit + 18 integration against local Supabase); `ruff check .` → all checks passed.
+- [x] Dashboard checks. — `npm run lint`, `npm run typecheck`, `npm run build` exit 0; smoke test: `/dashboard` anonymous → 307 `/login`; forged `/auth/confirm` → `/login`; CSP, X-Frame-Options DENY, nosniff, Referrer-Policy, Permissions-Policy present.
+- [ ] CI green on GitHub with the new `database-and-api` job. — Pending first push of Phase 1.
+
+### Phase 1 exit-gate test mapping
+| Gate | pgTAP (DB) | API integration |
+|---|---|---|
+| Tenant A cannot read/update Tenant B | tests 14–18, 57 | `test_cross_tenant_*` |
+| Browser-supplied tenant_id does not change tenant | 19–20 | `test_browser_supplied_tenant_id_cannot_change_tenant` |
+| Anonymous users cannot read private tables | 1–6 (+ Data API 7–13) | `test_unauthenticated_*`, `test_supabase_data_api_*` |
+| Receptionist cannot perform owner/platform actions | 21–31, 55–56 | `test_receptionist_*`, `test_admin_cannot_*` |
+| Revoked membership loses access | 37–41 | `test_revoked_member_loses_access_immediately` |
+| Suspended tenant is blocked | 42–44 | `test_suspended_tenant_is_blocked_then_restored` |
+| Service-role secrets never in browser bundles | — | `npm run check:bundle` (web) |
 
 ## Phase 2
 - [ ] Onboarding, clinic profile, services, hours, FAQs.
