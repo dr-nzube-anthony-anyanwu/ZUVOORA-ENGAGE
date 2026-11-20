@@ -1,0 +1,42 @@
+services:
+  api:
+    build: ./apps/api
+    env_file: .env
+    ports: ["${API_PORT:-8000}:8000"]
+    environment:
+      API_CORS_ORIGINS: "${API_CORS_ORIGINS:-http://localhost:3000}"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live')"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+    networks: [engage]
+  web:
+    # Security: do NOT load the shared .env here. It contains server-only secrets
+    # (Supabase service-role, OpenRouter, Resend, OAuth). The web container receives
+    # only explicitly listed, browser-safe values.
+    build:
+      context: ./apps/web
+      args:
+        # NEXT_PUBLIC_* values are inlined into browser bundles at build time.
+        NEXT_PUBLIC_API_BASE_URL: "http://localhost:${API_PORT:-8000}"
+    ports: ["${WEB_PORT:-3000}:3000"]
+    environment:
+      NODE_ENV: production
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [engage]
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [redis_data:/data]
+    restart: unless-stopped
+    networks: [engage]
+networks:
+  engage:
+    driver: bridge
+volumes:
+  redis_data:
