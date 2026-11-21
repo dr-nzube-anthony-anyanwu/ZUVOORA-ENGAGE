@@ -17,7 +17,7 @@ RUN addgroup --system app && adduser --system --ingroup app app
 COPY apps/api/pyproject.toml ./
 COPY apps/api/app ./app
 RUN pip install --no-cache-dir .
-COPY --from=widget /widget/dist/loader.js /widget/dist/frame.js /widget/dist/frame.css ./widget/
+COPY --from=widget /widget/dist/loader.js /widget/dist/frame.js /widget/dist/frame.css /widget/dist/frame.html ./widget/
 USER app
 EXPOSE 8073
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8073"]

@@ -150,9 +150,13 @@ all members read, owners/admins (and MFA platform admins) write; no DELETE (arch
   `default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'` and
   `Referrer-Policy: no-referrer`. http:// embedding is allowed only with
   `WIDGET_ALLOW_HTTP_FRAMES` (development/test; refused in staging/production).
+- **Static frame, no server-rendered data:** `/widget/v1/frame` is a fixed HTML file; only its
+  CSP header varies per key. The frame's script calls `POST /api/v1/public/widget/frame-config`
+  with the key and the embedding hostname (passed by the loader), which returns the clinic name,
+  greeting and a frame ticket only for a verified host (Semgrep finding on server-built HTML,
+  fixed by design). The close button posts only to the embedding page's origin.
 - **Frame ticket → conversation token:** a frame ticket (15 min) is issued only if the embedding
-  host (Referer, or the loader's hostname when no Referer is sent) is a verified domain of an
-  enabled widget of an active clinic. Starting a chat requires the ticket and re-checks it; the
+  host is a verified domain of an enabled widget of an active clinic. Starting a chat requires the ticket and re-checks it; the
   API generates the conversation id. Conversation tokens (2 h) are HS256 with a dedicated
   `WIDGET_TOKEN_SECRET`, separate audiences per token type, and carry ids only. A token forged
   with the real key but pairing another clinic with a conversation is still blocked by RLS

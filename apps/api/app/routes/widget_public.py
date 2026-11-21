@@ -12,17 +12,15 @@ Trust model:
 
 from __future__ import annotations
 
-import html
 import json
 import re
 import uuid
 from pathlib import Path
 from typing import Literal
-from urllib.parse import urlsplit
 
 import psycopg
 from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from app.config import Settings, get_settings
@@ -112,34 +110,28 @@ def _frame_ancestors(hosts: list[str], allow_http: bool) -> str:
     return " ".join(sources)
 
 
-_FRAME_PAGE = """<!doctype html>
-<html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex">
-<title>{title}</title>
-<link rel="stylesheet" href="/widget/v1/frame.css">
-<script id="engage-config" type="application/json">{config}</script>
-<script src="/widget/v1/frame.js" defer></script>
-</head><body><main id="engage-app" aria-live="polite">{body}</main></body></html>"""
+def _frame_csp(hosts: list[str], allow_http: bool) -> str:
+    return (
+        "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; "
+        "img-src 'self' data:; base-uri 'none'; form-action 'none'; "
+        f"frame-ancestors {_frame_ancestors(hosts, allow_http)}"
+    )
 
 
 @router.get("/widget/v1/frame", include_in_schema=False)
 def widget_frame(
     request: Request,
     key: str = Query(default="", max_length=64),
-    host: str = Query(default="", max_length=253),
     db: Database = Depends(get_db),
     tokens: WidgetTokens = Depends(get_widget_tokens),
-) -> HTMLResponse:
+) -> FileResponse:
+    """The static chat page. Browsers display it only inside the clinic's verified domains.
+
+    No clinic data is rendered into HTML here: the page's script fetches its configuration
+    from `frame-config`, which issues a ticket only for a verified host.
+    """
     settings = get_settings()
-    # The embedding page's host: from the Referer, or (if the site sends no Referer) from the
-    # loader. Either can be forged by non-browser clients, which is acceptable: browsers enforce
-    # frame-ancestors, and the public API is rate-limited and budget-capped regardless.
-    referer_host = (urlsplit(request.headers.get("referer", "")).hostname or host or "").lower()
-    if not re.fullmatch(r"[a-z0-9.-]{1,253}", referer_host):
-        referer_host = ""
     hosts: list[str] = []
-    clinic = None
     with db.widget_transaction() as conn:
         _hit(conn, tokens, request, "frame_ip", _client_ip(request))
         if KEY_RE.match(key):
@@ -149,38 +141,52 @@ def widget_frame(
                     "select app_private.widget_allowed_hosts(%s)", (key,)
                 ).fetchall()
             ]
-            if referer_host:
-                clinic = conn.execute(
-                    _RESOLVE,
-                    (key, referer_host),
-                ).fetchone()
+    path = _dist_dir(settings) / "frame.html"
+    if not path.is_file():
+        raise ApiError(503, "widget_not_built", "The widget is not available.")
+    headers = {
+        "Content-Security-Policy": _frame_csp(hosts, settings.widget_allow_http_frames),
+        "Referrer-Policy": "no-referrer",
+    }
+    return FileResponse(path, media_type="text/html; charset=utf-8", headers=headers)
 
-    csp = (
-        "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; "
-        "img-src 'self' data:; base-uri 'none'; form-action 'none'; "
-        f"frame-ancestors {_frame_ancestors(hosts, settings.widget_allow_http_frames)}"
-    )
-    headers = {"Content-Security-Policy": csp, "Referrer-Policy": "no-referrer"}
+
+class FrameConfigIn(StrictModel):
+    key: str = Field(pattern=r"^[0-9a-f]{32}$")
+    host: str = Field(min_length=1, max_length=253, pattern=r"^[A-Za-z0-9.-]+$")
+
+
+class FrameConfigOut(BaseModel):
+    ticket: str
+    clinic: str
+    greeting: str
+
+
+@router.post("/api/v1/public/widget/frame-config", response_model=FrameConfigOut)
+def frame_config(
+    body: FrameConfigIn,
+    request: Request,
+    db: Database = Depends(get_db),
+    tokens: WidgetTokens = Depends(get_widget_tokens),
+) -> FrameConfigOut:
+    """Issue a frame ticket if `host` is a verified domain of an enabled, active clinic.
+
+    `host` comes from the loader (the embedding page's hostname). A non-browser client can claim
+    any host, exactly as it could forge a Referer; browsers are bound by frame-ancestors, and the
+    public API is rate-limited and budget-capped regardless.
+    """
+    host = body.host.lower()
+    with db.widget_transaction() as conn:
+        _hit(conn, tokens, request, "frame_ip", _client_ip(request))
+        clinic = conn.execute(_RESOLVE, (body.key, host)).fetchone()
     if clinic is None:
-        log_security_event(request, "widget_frame_refused", host=referer_host or "-")
-        body = '<p class="unavailable">This chat is not available on this website.</p>'
-        page = _FRAME_PAGE.format(title="Chat unavailable", config="{}", body=body)
-        return HTMLResponse(page, status_code=403, headers=headers)
-
-    config = json.dumps(
-        {
-            "ticket": tokens.issue_ticket(key, referer_host),
-            "clinic": clinic["display_name"],
-            "greeting": clinic["greeting"],
-        }
+        log_security_event(request, "widget_frame_refused", host=host)
+        raise ApiError(403, "widget_unavailable", "This chat is not available on this website.")
+    return FrameConfigOut(
+        ticket=tokens.issue_ticket(body.key, host),
+        clinic=clinic["display_name"],
+        greeting=clinic["greeting"],
     )
-    # JSON inside <script type="application/json">: escape "<" so it can never close the tag.
-    page = _FRAME_PAGE.format(
-        title=html.escape(f"Chat with {clinic['display_name']}"),
-        config=config.replace("<", "\\u003c"),
-        body="",
-    )
-    return HTMLResponse(page, headers=headers)
 
 
 # ----- API: session, messages, handover ----------------------------------------------------------

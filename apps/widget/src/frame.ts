@@ -4,20 +4,22 @@
  * is kept in memory only.
  */
 (() => {
-  type Config = { ticket?: string; clinic?: string; greeting?: string };
+  type Config = { ticket: string; clinic: string; greeting: string };
   type ApiError = { error?: { code?: string; message?: string; details?: { msg: string }[] } };
 
-  const configEl = document.getElementById("engage-config");
-  const app = document.getElementById("engage-app");
-  if (!configEl || !app) return;
-  let config: Config = {};
-  try {
-    config = JSON.parse(configEl.textContent || "{}") as Config;
-  } catch {
-    return;
-  }
-  if (!config.ticket) return; // the server already rendered an "unavailable" message
-
+  const root = document.getElementById("engage-app");
+  if (!root) return;
+  const app: HTMLElement = root;
+  const params = new URLSearchParams(window.location.search);
+  // The embedding page's origin (the loader sets referrerPolicy "strict-origin" on the iframe).
+  const parentOrigin = (() => {
+    try {
+      return document.referrer ? new URL(document.referrer).origin : null;
+    } catch {
+      return null;
+    }
+  })();
+  let config: Config = { ticket: "", clinic: "", greeting: "" };
   let token: string | null = null;
   let busy = false;
 
@@ -32,11 +34,15 @@
 
   // ----- layout ---------------------------------------------------------------------------------
   const header = el("header", "head");
-  header.append(el("strong", "title", config.clinic ?? "Clinic assistant"));
+  const title = el("strong", "title", "Clinic assistant");
+  header.append(title);
   const closeBtn = el("button", "close", "×");
   closeBtn.type = "button";
   closeBtn.setAttribute("aria-label", "Close chat");
-  closeBtn.addEventListener("click", () => window.parent.postMessage({ type: "engage:close" }, "*"));
+  closeBtn.addEventListener("click", () => {
+    // Only ever tell the embedding page itself (never a wildcard target origin).
+    if (parentOrigin) window.parent.postMessage({ type: "engage:close" }, parentOrigin);
+  });
   header.append(closeBtn);
 
   const log = el("div", "log");
@@ -59,8 +65,23 @@
   const footer = el("p", "foot",
     "Automated assistant for clinic information — not medical advice. In an emergency, go to the nearest emergency department.");
 
-  app.append(header, log, handover, form, footer);
-  addMessage("assistant", config.greeting ?? "Hello! How can I help?");
+  void start();
+
+  async function start(): Promise<void> {
+    try {
+      config = await post<Config>("/api/v1/public/widget/frame-config", {
+        key: params.get("key") ?? "",
+        host: params.get("host") ?? "",
+      });
+    } catch {
+      app.append(el("p", "unavailable", "This chat is not available on this website."));
+      return;
+    }
+    title.textContent = config.clinic;
+    document.title = `Chat with ${config.clinic}`;
+    app.append(header, log, handover, form, footer);
+    addMessage("assistant", config.greeting);
+  }
 
   // ----- behaviour ------------------------------------------------------------------------------
   function addMessage(role: "visitor" | "assistant" | "system", text: string): void {

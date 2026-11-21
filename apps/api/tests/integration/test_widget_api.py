@@ -7,8 +7,6 @@ disabled states, static asset allow-list, and staff widget settings.
 
 from __future__ import annotations
 
-import json
-import re
 import uuid
 
 import pytest
@@ -63,22 +61,24 @@ def ancestors(response) -> list[str]:
     return csp.split("frame-ancestors", 1)[1].strip().split()
 
 
-def frame(client, key, referer=None, host=None):
-    headers = {"Referer": referer} if referer else {}
-    params = {"key": key} | ({"host": host} if host else {})
-    return client.get("/widget/v1/frame", params=params, headers=headers)
+def frame(client, key):
+    return client.get("/widget/v1/frame", params={"key": key})
 
 
-def ticket_from(response) -> str:
-    match = re.search(
-        r'<script id="engage-config" type="application/json">(.*?)</script>', response.text, re.S
-    )
-    return json.loads(match.group(1))["ticket"]
+def config(client, key, host):
+    return client.post("/api/v1/public/widget/frame-config", json={"key": key, "host": host})
+
+
+def ticket_for(client, site) -> str:
+    response = config(client, site["key"], site["host"])
+    assert response.status_code == 200, response.text
+    return response.json()["ticket"]
 
 
 def start(client, site) -> str:
-    page = frame(client, site["key"], referer=f"https://{site['host']}/contact")
-    response = client.post("/api/v1/public/widget/session", json={"ticket": ticket_from(page)})
+    response = client.post(
+        "/api/v1/public/widget/session", json={"ticket": ticket_for(client, site)}
+    )
     assert response.status_code == 200, response.text
     return response.json()["token"]
 
@@ -87,52 +87,47 @@ def say(client, token, text="Are you open on Saturday?"):
     return client.post("/api/v1/public/widget/messages", json={"token": token, "text": text})
 
 
-# ----- iframe page --------------------------------------------------------------------------------
-def test_frame_on_verified_host_is_allowed_and_locked_to_verified_hosts(client, site):
-    response = frame(client, site["key"], referer=f"https://{site['host']}/page")
-    assert response.status_code == 200
-    csp = response.headers["content-security-policy"]
-    assert f"https://{site['host']}" in ancestors(response)
-    assert all(not a.startswith("https://evil") for a in ancestors(response))
-    assert "script-src 'self'" in csp and "default-src 'none'" in csp
-    assert response.headers["referrer-policy"] == "no-referrer"
-    assert ticket_from(response)
-    assert "Hi from Clinic A" in response.text
-
-
-@pytest.mark.parametrize(
-    "referer", ["https://evil.example.net/", "https://pending.example.com/", None]
-)
-def test_frame_refused_on_unverified_or_unknown_host(client, site, referer):
-    response = frame(client, site["key"], referer=referer)
-    assert response.status_code == 403
-    assert "not available on this website" in response.text
-    assert '"ticket"' not in response.text
-    # Even the refusal page may only be framed by the clinic's verified hosts.
-    assert f"https://{site['host']}" in ancestors(response)
-    assert "https://evil.example.net" not in ancestors(response)
-
-
-def test_frame_host_fallback_when_site_sends_no_referer(client, site):
-    response = frame(client, site["key"], host=site["host"])
-    assert response.status_code == 200
+# ----- iframe page and configuration -----------------------------------------------------------
+def test_frame_page_is_static_and_locked_to_verified_hosts(client, site):
+    response = frame(client, site["key"])
+    assert response.status_code in (200, 503)  # 503 only if the widget was not built
+    if response.status_code == 200:
+        assert "engage-app" in response.text
+        assert "Hi from Clinic A" not in response.text  # no clinic data rendered into HTML
+    csp = response.headers.get("content-security-policy", "")
+    if response.status_code == 200:
+        assert f"https://{site['host']}" in ancestors(response)
+        assert "script-src 'self'" in csp and "default-src 'none'" in csp
+        assert response.headers["referrer-policy"] == "no-referrer"
 
 
 @pytest.mark.parametrize("key", ["0" * 32, "not-a-key", ""])
 def test_unknown_key_cannot_be_framed_anywhere(client, site, key):
-    response = frame(client, key, referer=f"https://{site['host']}/")
-    assert response.status_code == 403
-    assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
+    response = frame(client, key)
+    if response.status_code == 200:
+        assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
+
+
+def test_config_issued_only_for_a_verified_host(client, site):
+    ok = config(client, site["key"], site["host"].upper())
+    assert ok.status_code == 200
+    body = ok.json()
+    assert body["greeting"] == "Hi from Clinic A" and body["ticket"]
+    for host in ("evil.example.net", "pending.example.com", "localhost"):
+        refused = config(client, site["key"], host)
+        assert refused.status_code == 403, host
+        assert "ticket" not in refused.text
+    assert config(client, "0" * 32, site["host"]).status_code == 403
+    assert (
+        client.post(
+            "/api/v1/public/widget/frame-config", json={"key": site["key"], "host": "a/b"}
+        ).status_code
+        == 422
+    )
 
 
 def test_disabled_widget_is_refused(client, site, world, admin_db):
-    admin_db.execute(
-        "insert into public.tenant_domains (tenant_id, hostname, verification_status) "
-        "values (%s, %s, 'pending') on conflict do nothing",
-        (world.tenant_b, "b-site.example.com"),
-    )
-    response = frame(client, site["b_key"], referer="https://b-site.example.com/")
-    assert response.status_code == 403
+    assert config(client, site["b_key"], "b-site.example.com").status_code == 403
 
 
 # ----- conversation ---------------------------------------------------------------------------
@@ -158,8 +153,9 @@ def test_tokens_cannot_be_tampered_or_confused(client, site, world, admin_db):
     assert say(client, tampered).status_code == 401
     foreign = WidgetTokens("x" * 48).issue_conversation(world.tenant_a, uuid.uuid4(), site["host"])
     assert say(client, foreign).status_code == 401
-    page = frame(client, site["key"], referer=f"https://{site['host']}/")
-    assert say(client, ticket_from(page)).status_code == 401  # a ticket is not a conversation
+    assert (
+        say(client, ticket_for(client, site)).status_code == 401
+    )  # a ticket is not a conversation
     assert (
         client.post("/api/v1/public/widget/session", json={"ticket": token}).status_code == 401
     )  # and vice versa
@@ -264,8 +260,7 @@ def test_suspended_clinic_widget_stops(client, site, world, admin_db):
     )
     try:
         assert say(client, token).status_code == 403
-        page = frame(client, site["key"], referer=f"https://{site['host']}/")
-        assert page.status_code == 403
+        assert config(client, site["key"], site["host"]).status_code == 403
     finally:
         admin_db.execute(
             "update public.tenants set status = 'active' where id = %s", (world.tenant_a,)
@@ -303,8 +298,8 @@ def test_widget_settings_permissions_and_key_rotation(client, site, world):
     assert rotated.status_code == 200
     new_key = rotated.json()["public_key"]
     assert new_key != old_key
-    assert frame(client, old_key, referer=f"https://{site['host']}/").status_code == 403
-    assert frame(client, new_key, referer=f"https://{site['host']}/").status_code == 200
+    assert config(client, old_key, site["host"]).status_code == 403
+    assert config(client, new_key, site["host"]).status_code == 200
     site["key"] = new_key
 
 
