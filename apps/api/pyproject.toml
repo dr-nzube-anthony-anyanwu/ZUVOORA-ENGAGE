@@ -35,6 +35,8 @@ include = ["app*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Make `tests.*` helpers importable however pytest is launched (`pytest` in CI, `python -m pytest`).
+pythonpath = ["."]
 addopts = "-q"
 markers = [
   "integration: requires the local Supabase stack (npm run db:start); skipped when unavailable",

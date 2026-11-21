@@ -8,17 +8,21 @@ on:
 permissions:
   contents: read
 jobs:
+  # semgrep/semgrep-action is archived; run the official Semgrep container, pinned by digest.
   semgrep:
     runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep:1.184.0@sha256:cc1b68266f267878b39739373ea9985b9a78e5d64497dd875c8de100b22695ed
     steps:
-      - uses: actions/checkout@v4
-      - uses: semgrep/semgrep-action@v1
-        with:
-          config: p/owasp-top-ten
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Semgrep (OWASP Top 10 rules), fail on findings
+        run: >-
+          semgrep scan --config p/owasp-top-ten --metrics=off --error
+          --exclude node_modules --exclude .venv --exclude .next --exclude docs/source_word_documents
   trivy-fs:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # Pinned to a full commit SHA (v0.36.0); never track a moving branch like @master.
       - uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8
         with:
