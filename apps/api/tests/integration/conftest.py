@@ -28,6 +28,7 @@ from app.main import app
 from app.security.jwt import TokenVerifier
 from app.services.storage import SupabaseObjectStore
 from app.services.supabase_admin import SupabaseAuthAdmin
+from app.services.widget_tokens import WidgetTokens
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 LOCAL_HOSTS = ("http://127.0.0.1:", "http://localhost:")
@@ -85,12 +86,14 @@ def client(stack):
     app.state.auth_admin = SupabaseAuthAdmin(settings)
     app.state.db = db
     app.state.object_store = SupabaseObjectStore(settings)
+    app.state.widget_tokens = WidgetTokens(secrets.token_urlsafe(48))
     try:
         yield TestClient(app)
     finally:
         db.close()
         app.state.verifier = app.state.auth_admin = app.state.db = None
         app.state.object_store = None
+        app.state.widget_tokens = None
 
 
 @dataclass

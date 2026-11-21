@@ -8,6 +8,7 @@
  * and never prints key values. Cloud/staging values must be entered by hand, never by script.
  */
 import { execFileSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -46,6 +47,8 @@ const files = {
     `SUPABASE_URL=${apiUrl}`,
     `SUPABASE_SECRET_KEY=${status.SECRET_KEY}`,
     `DATABASE_URL=postgresql://engage_api:local-dev-only-engage-api@${dbHost}`,
+    `WIDGET_TOKEN_SECRET=${randomBytes(48).toString("base64url")}`,
+    "WIDGET_ALLOW_HTTP_FRAMES=true",
     "",
   ],
   [join(ROOT, "apps", "web", ".env.local")]: [

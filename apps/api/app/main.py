@@ -14,13 +14,15 @@ from app.routes.health import router as health_router
 from app.routes.knowledge import router as knowledge_router
 from app.routes.me import router as me_router
 from app.routes.platform import router as platform_router
-from app.routes.public import router as public_router
 from app.routes.tenants import router as tenants_router
+from app.routes.widget_admin import router as widget_admin_router
+from app.routes.widget_public import router as widget_public_router
 from app.security.jwt import TokenVerifier
 from app.services.domain_verification import DnsTxtVerifier
 from app.services.extraction import MAX_UPLOAD_BYTES
 from app.services.storage import SupabaseObjectStore
 from app.services.supabase_admin import SupabaseAuthAdmin
+from app.services.widget_tokens import WidgetTokens
 
 settings = get_settings()
 logging.basicConfig(
@@ -39,6 +41,11 @@ async def lifespan(app: FastAPI):
         else None
     )
     app.state.domain_verifier = DnsTxtVerifier(settings)
+    app.state.widget_tokens = (
+        WidgetTokens(settings.widget_token_secret.get_secret_value())
+        if settings.widget_token_secret is not None
+        else None
+    )
     app.state.object_store = (
         SupabaseObjectStore(settings)
         if settings.supabase_url and settings.supabase_secret_key is not None
@@ -76,10 +83,11 @@ app.add_middleware(
 # Outermost: cap request bodies (10 MB upload + multipart overhead) before anything parses them.
 app.add_middleware(BodySizeLimitMiddleware, max_bytes=MAX_UPLOAD_BYTES + 256 * 1024)
 app.include_router(health_router)
-app.include_router(public_router, prefix="/api/v1")
 app.include_router(me_router, prefix="/api/v1")
 app.include_router(tenants_router, prefix="/api/v1")
 app.include_router(content_router, prefix="/api/v1")
 app.include_router(domains_router, prefix="/api/v1")
 app.include_router(knowledge_router, prefix="/api/v1")
+app.include_router(widget_admin_router, prefix="/api/v1")
+app.include_router(widget_public_router)
 app.include_router(platform_router, prefix="/api/v1")

@@ -15,6 +15,7 @@ PROD_BASE = {
     "supabase_url": "https://example.supabase.co",
     "supabase_secret_key": "placeholder",
     "database_url": "postgresql://engage_api@db.invalid/postgres",
+    "widget_token_secret": "placeholder-widget-secret-0123456789abcdef",
 }
 
 

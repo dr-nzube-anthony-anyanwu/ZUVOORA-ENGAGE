@@ -16,6 +16,9 @@ export type E2EFixtures = {
   receptionistA: E2EUser;
   ownerB: E2EUser;
   seededFaqA: string;
+  widgetKey: string;
+  clinicSite: string;
+  otherSite: string;
 };
 
 type Stack = { API_URL: string; DB_URL: string; SECRET_KEY: string };
@@ -86,8 +89,19 @@ export async function createFixtures(): Promise<E2EFixtures> {
                   category: null, sort_order: 0 }],
     );
     await db.query("update public.faqs set published = draft where id = $1", [faq.rows[0].id]);
+    // Clinic A's chat widget: on, with a verified (fake) website domain.
+    const clinicSite = `clinic-${runId}.engage-e2e.test`;
+    await db.query(
+      "insert into public.tenant_domains (tenant_id, hostname) values ($1, $2)", [tenantA, clinicSite]);
+    await db.query(
+      "update public.tenant_domains set verification_status = 'verified' where hostname = $1", [clinicSite]);
+    const widget = await db.query(
+      `update public.widget_configs set enabled = true, greeting = $2 where tenant_id = $1
+       returning public_key`, [tenantA, `Hello from E2E Clinic A ${runId}`]);
     await db.query("commit");
-    return { runId, tenantA, tenantB, ownerA, receptionistA, ownerB, seededFaqA: faq.rows[0].id };
+    return { runId, tenantA, tenantB, ownerA, receptionistA, ownerB, seededFaqA: faq.rows[0].id,
+             widgetKey: widget.rows[0].public_key, clinicSite,
+             otherSite: `evil-${runId}.engage-e2e.test` };
   } catch (error) {
     await db.query("rollback");
     throw error;

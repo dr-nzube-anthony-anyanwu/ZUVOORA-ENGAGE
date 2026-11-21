@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import { randomBytes } from "node:crypto";
 import path from "node:path";
 
 /**
@@ -26,14 +27,32 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [{
+    name: "chromium",
+    use: {
+      ...devices["Desktop Chrome"],
+      // Two fake "clinic websites" on this machine, for real cross-site widget embedding.
+      launchOptions: { args: ["--host-resolver-rules=MAP *.engage-e2e.test 127.0.0.1"] },
+    },
+  }],
   webServer: [
     {
       command: `"${python}" -m uvicorn app.main:app --host 127.0.0.1 --port 8073`,
       cwd: apiDir,
+      env: {
+        // http:// test sites may embed the widget (never allowed in staging/production).
+        WIDGET_ALLOW_HTTP_FRAMES: "true",
+        WIDGET_TOKEN_SECRET: process.env.WIDGET_TOKEN_SECRET ?? randomBytes(48).toString("base64url"),
+      },
       url: "http://127.0.0.1:8073/health/ready",
       reuseExistingServer: false,
       timeout: 60_000,
+    },
+    {
+      command: "node e2e/site-server.mjs",
+      url: "http://127.0.0.1:4180/?key=" + "0".repeat(32),
+      reuseExistingServer: false,
+      timeout: 30_000,
     },
     {
       command: "npm run start",

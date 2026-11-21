@@ -46,7 +46,7 @@ test("owner configures and publishes clinic content", async ({ page }) => {
   });
   await signIn(page, ownerA);
   await page.getByRole("link", { name: `E2E Clinic A ${runId}` }).click();
-  await expect(page.getByRole("heading", { name: /Setup checklist · 1 of 6/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Setup checklist · 2 of 6/ })).toBeVisible();
 
   // Clinic profile: save a draft, then publish it.
   await openSection(page, "Clinic profile");
@@ -136,9 +136,9 @@ test("owner configures and publishes clinic content", async ({ page }) => {
   await expect(page.getByText(`_zuvoora-engage.www.e2e-${runId}.example.com`)).toBeVisible();
   await expect(page.getByText(/^zuvoora-engage-verification=[0-9a-f]{64}$/)).toBeVisible();
 
-  // Everything except domain verification is now complete.
+  // Everything is complete (the widget fixture already verified a domain).
   await openSection(page, "Overview");
-  await expect(page.getByRole("heading", { name: /Setup checklist · 5 of 6/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Setup checklist · 6 of 6/ })).toBeVisible();
   expect(dialogs).toEqual([]);
   expect(consoleErrors).toEqual([]);
 });

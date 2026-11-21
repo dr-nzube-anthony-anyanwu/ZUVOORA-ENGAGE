@@ -41,6 +41,13 @@ class Settings(BaseSettings):
     email_from: str | None = None
     redis_url: str = "redis://localhost:6379/0"
 
+    # Public widget (Phase 3b). The token secret signs frame tickets and conversation tokens.
+    widget_token_secret: SecretStr | None = None
+    # Allow http:// embedding pages (any port) in frame-ancestors. Development/test only.
+    widget_allow_http_frames: bool = False
+    # Built widget assets (apps/widget/dist); defaults to the monorepo location.
+    widget_dist_dir: str | None = None
+
     # Domain verification (DNS TXT). Empty = the operating system's resolvers.
     dns_resolvers: str = ""
     dns_timeout_seconds: float = 4.0
@@ -56,7 +63,8 @@ class Settings(BaseSettings):
         if self.app_env in {"staging", "production"}:
             missing = [
                 name
-                for name in ("supabase_url", "supabase_secret_key", "database_url")
+                for name in ("supabase_url", "supabase_secret_key", "database_url",
+                         "widget_token_secret")
                 if getattr(self, name) is None
             ]
             if missing:
@@ -67,6 +75,11 @@ class Settings(BaseSettings):
                 )
             if self.supabase_url and not self.supabase_url.startswith("https://"):
                 raise ValueError("SUPABASE_URL must use https outside development/test")
+            if self.widget_allow_http_frames:
+                raise ValueError("WIDGET_ALLOW_HTTP_FRAMES is not allowed outside development/test")
+            secret = self.widget_token_secret
+            if secret is not None and len(secret.get_secret_value()) < 32:
+                raise ValueError("WIDGET_TOKEN_SECRET must be at least 32 characters")
             if "*" in self.cors_origins:
                 raise ValueError("Wildcard CORS origins are not allowed outside development/test")
         return self

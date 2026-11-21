@@ -4,7 +4,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(42);
+select plan(44);
 
 grant engage_app to postgres with inherit false, set true;
 grant engage_widget to postgres with inherit false, set true;
@@ -205,6 +205,12 @@ set local role engage_app;
 select results_eq($$select count(*)::int from public.messages where tenant_id = '10000000-0000-4000-8000-00000000000a'$$,
   array[0], 'Clinic B owner cannot read Clinic A messages');
 reset role;
+
+-- 7. Retention path: the database owner can delete; nobody can edit (43-44)
+select lives_ok($$delete from public.conversations where id = '40000000-0000-4000-8000-0000000000b1'$$,
+  'Database owner can delete a conversation with its messages (retention / deletion requests)');
+select throws_ok($$update public.messages set content = 'rewritten'$$, '42501', null,
+  'Messages cannot be edited, even by the database owner');
 
 select results_eq($$select count(*)::int from public.widget_configs w join public.tenants t on t.id = w.tenant_id$$,
   $$select count(*)::int from public.tenants$$, 'Every tenant has a widget configuration');

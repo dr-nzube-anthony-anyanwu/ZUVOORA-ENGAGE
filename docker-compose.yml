@@ -1,6 +1,8 @@
 services:
   api:
-    build: ./apps/api
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
     env_file: .env
     ports: ["${API_PORT:-8073}:8073"]
     environment:
@@ -28,6 +30,7 @@ services:
       NODE_ENV: production
       # Server-side only: the dashboard's server calls the API over the internal network.
       ENGAGE_API_URL: http://api:8073
+      ENGAGE_PUBLIC_API_URL: "${ENGAGE_PUBLIC_API_URL:-http://localhost:8073}"
     depends_on:
       api:
         condition: service_healthy

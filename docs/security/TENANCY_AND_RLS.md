@@ -140,6 +140,33 @@ all members read, owners/admins (and MFA platform admins) write; no DELETE (arch
   resolve handovers — front-desk work); viewers read only; AI costs are visible to owners/admins;
   only owners/admins configure the widget or rotate its key.
 
+## Public widget (Phase 3b, ADR-027)
+- The API serves the embed script (`/widget/v1/loader.js`), the chat iframe
+  (`/widget/v1/frame?key=…`) and the public endpoints from one origin, so the iframe needs no
+  CORS and rate limits see the visitor's IP. Assets come from a fixed allow-list.
+- **Browser-enforced domains:** the iframe response carries
+  `Content-Security-Policy: frame-ancestors https://<verified host>…` built from the clinic's
+  verified, non-removed domains (`'none'` if there are none or the key is unknown), plus
+  `default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'` and
+  `Referrer-Policy: no-referrer`. http:// embedding is allowed only with
+  `WIDGET_ALLOW_HTTP_FRAMES` (development/test; refused in staging/production).
+- **Frame ticket → conversation token:** a frame ticket (15 min) is issued only if the embedding
+  host (Referer, or the loader's hostname when no Referer is sent) is a verified domain of an
+  enabled widget of an active clinic. Starting a chat requires the ticket and re-checks it; the
+  API generates the conversation id. Conversation tokens (2 h) are HS256 with a dedicated
+  `WIDGET_TOKEN_SECRET`, separate audiences per token type, and carry ids only. A token forged
+  with the real key but pairing another clinic with a conversation is still blocked by RLS
+  (tested).
+- **Limits:** per visitor IP (keyed hash), per conversation and per clinic; messages ≤ 1,000
+  characters; ≤ 50 messages per conversation; request bodies capped by the global middleware.
+- **Rendering:** the iframe UI and loader insert text with `textContent` only; the iframe is
+  sandboxed (`allow-scripts allow-same-origin allow-forms`); the loader only accepts `close`
+  messages from the Engage origin and frame. Conversation tokens are held in memory only.
+- **Handover:** consent checkbox required; phone or email required; one request per
+  conversation; the conversation moves to `handover_requested`.
+- **Retention:** messages and the usage ledger are immutable and undeletable by application
+  roles; only the database owner can delete (tenant deletion, lawful deletion/retention jobs).
+
 ## Adding a tenant-owned table (checklist)
 1. `tenant_id uuid not null references public.tenants(id)`.
 2. `enable` + `force row level security`.

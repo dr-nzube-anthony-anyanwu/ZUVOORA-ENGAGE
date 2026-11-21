@@ -35,6 +35,11 @@ jobs:
       - name: Ruff
         working-directory: apps/api
         run: ruff check .
+      - name: Build widget (served by the API)
+        working-directory: apps/widget
+        run: |
+          npm ci
+          npm run build
       - name: API unit + integration tests
         working-directory: apps/api
         run: pytest -rs

@@ -417,3 +417,44 @@ export async function revokeMember(
   refresh(tenantId);
   return { ok: "Access revoked." };
 }
+
+// ----- chat widget -----------------------------------------------------------------------------
+export async function saveWidgetGreeting(
+  tenantId: string, _prev: ActionState, form: FormData,
+): Promise<ActionState> {
+  try {
+    ids(tenantId);
+    await apiFetch(tenantPath(tenantId, "widget"), {
+      method: "PATCH", json: { greeting: text(form, "greeting") ?? "" },
+    });
+  } catch (error) {
+    return failure(error);
+  }
+  refresh(tenantId);
+  return { ok: "Greeting saved." };
+}
+
+export async function setWidgetEnabled(
+  tenantId: string, enabled: boolean, _prev: ActionState,
+): Promise<ActionState> {
+  try {
+    ids(tenantId);
+    if (typeof enabled !== "boolean") throw new InvalidInput("invalid choice");
+    await apiFetch(tenantPath(tenantId, "widget"), { method: "PATCH", json: { enabled } });
+  } catch (error) {
+    return failure(error);
+  }
+  refresh(tenantId);
+  return { ok: enabled ? "The chat is on." : "The chat is off." };
+}
+
+export async function rotateWidgetKey(tenantId: string, _prev: ActionState): Promise<ActionState> {
+  try {
+    ids(tenantId);
+    await apiFetch(tenantPath(tenantId, "widget", "rotate-key"), { method: "POST" });
+  } catch (error) {
+    return failure(error);
+  }
+  refresh(tenantId);
+  return { ok: "New key created. Update the snippet on your website." };
+}

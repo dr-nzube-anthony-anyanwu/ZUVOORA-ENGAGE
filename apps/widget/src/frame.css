@@ -1,0 +1,27 @@
+:root { --navy:#15324b; --teal:#167d8d; --ink:#203040; --muted:#607080; --line:#dce5e9; --surface:#f4f8f9; }
+* { box-sizing:border-box; }
+html, body { margin:0; height:100%; }
+body { font:14px/1.5 Arial, Helvetica, sans-serif; color:var(--ink); background:#fff; }
+#engage-app { display:flex; flex-direction:column; height:100%; }
+.unavailable { margin:auto; padding:24px; color:var(--muted); text-align:center; }
+.head { display:flex; justify-content:space-between; align-items:center; padding:12px 14px; background:var(--navy); color:#fff; }
+.title { font-size:15px; }
+.close { background:none; border:0; color:#fff; font-size:22px; line-height:1; cursor:pointer; padding:0 4px; }
+.log { flex:1; overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:8px; background:var(--surface); }
+.msg { max-width:85%; padding:8px 12px; border-radius:12px; white-space:pre-wrap; word-wrap:break-word; }
+.msg.visitor { align-self:flex-end; background:var(--navy); color:#fff; border-bottom-right-radius:4px; }
+.msg.assistant { align-self:flex-start; background:#fff; border:1px solid var(--line); border-bottom-left-radius:4px; }
+.msg.system { align-self:center; background:#fff4dc; color:#7a5200; font-size:13px; }
+.composer { display:flex; gap:8px; padding:10px; border-top:1px solid var(--line); }
+.composer textarea { flex:1; resize:none; font:inherit; padding:8px 10px; border:1px solid var(--line); border-radius:10px; }
+.composer textarea:focus, .handover input:focus { outline:2px solid var(--teal); outline-offset:1px; }
+.send { font:inherit; font-weight:700; border:0; border-radius:10px; padding:8px 14px; background:var(--navy); color:#fff; cursor:pointer; }
+.send:disabled { opacity:.6; cursor:progress; }
+.handover { display:grid; gap:8px; padding:12px 14px; border-top:1px solid var(--line); background:#fff; }
+.handover[hidden] { display:none; }
+.handover-title { margin:0; font-weight:700; color:var(--navy); }
+.field { display:grid; gap:4px; font-size:13px; font-weight:700; }
+.field input { font:inherit; font-weight:400; padding:7px 9px; border:1px solid var(--line); border-radius:8px; }
+.consent { font-size:12px; display:flex; gap:6px; align-items:flex-start; }
+.hint { margin:0; font-size:12px; color:var(--muted); }
+.foot { margin:0; padding:6px 12px 8px; font-size:11px; color:var(--muted); text-align:center; }

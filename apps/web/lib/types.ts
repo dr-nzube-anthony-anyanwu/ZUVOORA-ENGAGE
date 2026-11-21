@@ -115,6 +115,13 @@ export type KnowledgeDocument = {
 
 export type KnowledgeDocumentDetail = KnowledgeDocument & { versions: KnowledgeVersion[] };
 
+export type WidgetSettings = {
+  public_key: string;
+  enabled: boolean;
+  greeting: string;
+  verified_hosts: string[];
+};
+
 export type Member = {
   membership_id: string;
   user_id: string;

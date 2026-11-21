@@ -1,0 +1,12 @@
+# Build context is the repository root: send only what the API image needs. Never secrets.
+**
+!apps/api/pyproject.toml
+!apps/api/app/**
+!apps/widget/package.json
+!apps/widget/package-lock.json
+!apps/widget/tsconfig.json
+!apps/widget/src/**
+**/__pycache__
+**/*.py[cod]
+**/.env
+**/.env.*

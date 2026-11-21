@@ -13,6 +13,7 @@ runs as `authenticated`, which has no privileges on Engage tables (ADR-016).
 from __future__ import annotations
 
 import json
+import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
 
@@ -50,6 +51,28 @@ class Database:
             return True
         except (psycopg.Error, TimeoutError):
             return False
+
+    @contextmanager
+    def widget_transaction(
+        self, tenant_id: uuid.UUID | None = None, conversation_id: uuid.UUID | None = None
+    ) -> Iterator[psycopg.Connection]:
+        """One transaction as the anonymous widget visitor (role engage_widget, ADR-025).
+
+        The tenant and conversation come only from verified widget tokens, never from request
+        bodies. No user JWT claims are present, so staff policies cannot match.
+        """
+        with self._pool.connection() as conn, conn.transaction():
+            conn.execute("select set_config('request.jwt.claims', '', true)")
+            conn.execute(
+                "select set_config('request.widget.tenant_id', %s, true), "
+                "set_config('request.widget.conversation_id', %s, true)",
+                (
+                    str(tenant_id) if tenant_id else "",
+                    str(conversation_id) if conversation_id else "",
+                ),
+            )
+            conn.execute("set local role engage_widget")
+            yield conn
 
     @contextmanager
     def user_transaction(self, principal: Principal) -> Iterator[psycopg.Connection]:
