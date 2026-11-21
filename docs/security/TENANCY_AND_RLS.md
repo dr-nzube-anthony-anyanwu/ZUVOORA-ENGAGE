@@ -75,6 +75,24 @@ all members read, owners/admins (and MFA platform admins) write; no DELETE (arch
 - Every create/edit/publish/unpublish/archive/restore writes an audit event in the same
   transaction.
 
+## Website domains (Phase 2b, ADR-022)
+- A clinic registers a hostname (owner/admin). The database generates a 256-bit
+  `verification_token`; hostname and token are immutable. The clinic publishes
+  `TXT _zuvoora-engage.<hostname> = zuvoora-engage-verification=<token>`.
+- The API verifies with a **DNS TXT lookup only** (never an HTTP fetch, so no SSRF surface),
+  outside any database transaction, with a per-domain cooldown (default 15 s) and a 4 s timeout.
+- Hostnames are normalised (lower-case, trailing dot removed, IDN → punycode) and rejected if
+  they contain a scheme/path/port, are IP addresses, single-label, or use private/reserved TLDs
+  (`localhost`, `local`, `internal`, `test`, `example`, …). The database re-checks the format.
+- **Anti-squatting:** many clinics may *claim* a hostname, but a partial unique index allows only
+  one *verified* holder. A claim never blocks the real owner; a second verifier gets
+  `409 domain_taken` (attempt and audit kept).
+- Domains are removed (`removed_at`, server-stamped), never deleted; removal drops verification
+  and frees the hostname; a new claim gets a new token. Max 10 active domains per clinic.
+- Every add/verify attempt/removal is audited (hostname and outcome only).
+- Limitation: verification is checked once; periodic re-verification (record removed later)
+  is planned with the Phase 3 widget/domain checks.
+
 ## Adding a tenant-owned table (checklist)
 1. `tenant_id uuid not null references public.tenants(id)`.
 2. `enable` + `force row level security`.

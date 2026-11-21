@@ -58,7 +58,8 @@ def test_draft_publish_edit_cycle_keeps_published_copy_live(client, world):
     )
     assert edited.status_code == 200, edited.text
     body = edited.json()
-    assert (body["state"], body["revision"], body["published_revision"]) == ("changes_pending", 2, 1)
+    assert (body["state"], body["revision"], body["published_revision"]) == (
+        "changes_pending", 2, 1)
     assert body["published"]["question"] == "Do you accept walk-in patients?"  # still live
 
     republished = client.post(f"{item_url}/publish", headers=world.a_admin.auth,

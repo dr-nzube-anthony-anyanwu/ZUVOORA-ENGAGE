@@ -15,6 +15,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from app.db import Database
 from app.errors import ApiError, forbidden, log_security_event, not_found, request_id_of
 from app.security.jwt import Principal, TokenError, TokenVerifier
+from app.services.domain_verification import DomainVerifier
 from app.services.supabase_admin import SupabaseAuthAdmin
 
 ALL_ROLES = frozenset({"owner", "admin", "receptionist", "viewer"})
@@ -35,6 +36,13 @@ def get_auth_admin(request: Request) -> SupabaseAuthAdmin:
     if admin is None:
         raise ApiError(503, "auth_admin_unavailable", "Auth administration is not configured.")
     return admin
+
+
+def get_domain_verifier(request: Request) -> DomainVerifier:
+    verifier: DomainVerifier | None = getattr(request.app.state, "domain_verifier", None)
+    if verifier is None:
+        raise ApiError(503, "dns_unavailable", "Domain verification is not configured.")
+    return verifier
 
 
 def get_principal(

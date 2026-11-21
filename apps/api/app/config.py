@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     email_from: str | None = None
     redis_url: str = "redis://localhost:6379/0"
 
+    # Domain verification (DNS TXT). Empty = the operating system's resolvers.
+    dns_resolvers: str = ""
+    dns_timeout_seconds: float = 4.0
+    domain_verify_cooldown_seconds: int = 15
+
     @field_validator("supabase_url")
     @classmethod
     def strip_trailing_slash(cls, value: str | None) -> str | None:
@@ -69,6 +74,10 @@ class Settings(BaseSettings):
     @property
     def cors_origins(self) -> list[str]:
         return [x.strip() for x in self.api_cors_origins.split(",") if x.strip()]
+
+    @property
+    def dns_nameservers(self) -> list[str]:
+        return [x.strip() for x in self.dns_resolvers.split(",") if x.strip()]
 
     @property
     def jwt_issuer(self) -> str | None:

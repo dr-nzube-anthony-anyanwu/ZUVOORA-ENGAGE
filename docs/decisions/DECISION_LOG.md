@@ -23,6 +23,7 @@
 | ADR-019 | Engage ports: API 8073, dashboard 3073 (avoid clashes with other local projects on 8000/3000) | Accepted (2026-11-21) |
 | ADR-020 | Email from `engage.zuvoora.com` via Resend (EU); Supabase Auth uses a sending-only, domain-restricted key | Accepted (2026-11-21) |
 | ADR-021 | Clinic content uses draft/published JSON copies with database-enforced publication invariants | Accepted (Phase 2a, 2026-11-21) |
+| ADR-022 | Website ownership proven by DNS TXT record; one verified holder per hostname | Accepted (Phase 2b, 2026-11-21) |
 
 ### ADR-011 — Next.js 16
 - **Context:** `eslint.config.mjs` used the Next 16 flat-config entry points, so lint failed on Next 15; Next 15 also pulled a high-severity `postcss` advisory (npm's only fix was Next 16.4.6); the webpack build failed on the exFAT SSD (`EISDIR readlink`).
@@ -76,3 +77,9 @@ Record context, alternatives, decision and consequences for every major architec
 - **Alternatives:** (a) per-row `status` column (editing a live item would unpublish it or publish unreviewed edits); (b) separate revision tables (more joins and code for little benefit at MVP scale); (c) duplicated typed columns for draft and published (doubles every schema change).
 - **Decision:** each content row holds `draft` and `published` JSON objects. Pydantic models define and validate the shape (plain text, structured opening hours); the database enforces type, size and the publication invariants via triggers and column grants (revision increments, publish only the current draft, server-set publisher/time, archive unpublishes, no tenant moves, no DELETE). The API adds optimistic locking on revisions.
 - **Consequences:** publication rules hold even if API code is wrong (verified by mutation testing: with the API role check removed, the database still blocked receptionist writes). Content shape changes need a Pydantic change (and a data migration if a field becomes stricter). Phase 3 reads only `published`. The unused Phase 1 `clinic_profiles` columns were dropped (no data existed).
+
+### ADR-022 — Domain verification by DNS TXT
+- **Context:** the Phase 3 widget must only run on websites the clinic controls. Phase 1 made `tenant_domains.hostname` globally unique, which would let any clinic squat another clinic's hostname and block it.
+- **Alternatives:** HTML meta tag or file upload checks (require the API to fetch arbitrary URLs: SSRF risk, redirects, hosting quirks); CNAME checks (conflict with existing records); manual approval by ZubeVision (does not scale, not proof of control).
+- **Decision:** TXT record at `_zuvoora-engage.<hostname>` containing a database-generated token; DNS lookup only, via `dnspython` (system resolvers, or `DNS_RESOLVERS`). Global uniqueness replaced by one active claim per tenant plus one verified holder per hostname.
+- **Consequences:** no outbound HTTP from user input; squatting is harmless; ownership changes require removal by the current holder (or support). Verification is not yet re-checked periodically; Phase 3 adds re-verification before the widget trusts a domain.

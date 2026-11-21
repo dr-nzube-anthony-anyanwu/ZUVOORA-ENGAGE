@@ -32,8 +32,10 @@ def test_valid_opening_hours_are_normalised_into_day_order():
 @pytest.mark.parametrize(
     ("override", "reason"),
     [
-        ({"mon": {"day": "mon", "ranges": [{"open": "17:00", "close": "08:00"}]}}, "close must be after"),
-        ({"mon": {"day": "mon", "ranges": [{"open": "08:00", "close": "08:00"}]}}, "close must be after"),
+        ({"mon": {"day": "mon", "ranges": [{"open": "17:00", "close": "08:00"}]}},
+         "close must be after"),
+        ({"mon": {"day": "mon", "ranges": [{"open": "08:00", "close": "08:00"}]}},
+         "close must be after"),
         ({"mon": {"day": "mon", "ranges": [{"open": "8:00", "close": "17:00"}]}}, "pattern"),
         ({"mon": {"day": "mon", "ranges": [{"open": "08:00", "close": "24:00"}]}}, "pattern"),
         ({"mon": {"day": "mon", "closed": True, "ranges": [{"open": "08:00", "close": "12:00"}]}},
