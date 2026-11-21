@@ -22,6 +22,7 @@
 | ADR-018 | Invitation-only accounts; platform admins provision clinics and require TOTP MFA (aal2) | Accepted (Phase 1, 2026-11-20) |
 | ADR-019 | Engage ports: API 8073, dashboard 3073 (avoid clashes with other local projects on 8000/3000) | Accepted (2026-11-21) |
 | ADR-020 | Email from `engage.zuvoora.com` via Resend (EU); Supabase Auth uses a sending-only, domain-restricted key | Accepted (2026-11-21) |
+| ADR-021 | Clinic content uses draft/published JSON copies with database-enforced publication invariants | Accepted (Phase 2a, 2026-11-21) |
 
 ### ADR-011 — Next.js 16
 - **Context:** `eslint.config.mjs` used the Next 16 flat-config entry points, so lint failed on Next 15; Next 15 also pulled a high-severity `postcss` advisory (npm's only fix was Next 16.4.6); the webpack build failed on the exFAT SSD (`EISDIR readlink`).
@@ -69,3 +70,9 @@ Record context, alternatives, decision and consequences for every major architec
 - **Alternatives:** `mail.zuvoora.com` (reputation shared with ZUVOORA core); buying a separate domain (cost, delay).
 - **Decision:** dedicated subdomain `engage.zuvoora.com` in Resend region eu-west-1 (matches Supabase region), with DKIM, SPF, return-path and DMARC (`p=none`, tighten to `quarantine` once delivery is clean). Supabase Auth SMTP uses its own Resend key with `sending_access` limited to that domain; the founder's full-access key is used only for setup. SMTP is applied to the cloud project from a temporary config copy so the local stack keeps using Mailpit.
 - **Consequences:** Engage's sender reputation is isolated from `zuvoora.com`. The full-access Resend key should be replaced in `.env` by a sending-only key before the backend sends email (Phase 4). To rotate the Supabase SMTP key, create a new restricted key and re-run the SMTP push (see `SUPABASE_CLOUD_SETUP.md`).
+
+### ADR-021 — Draft/publish model for clinic content
+- **Context:** Phase 2 requires that public content is unavailable until approved, while clinics must be able to edit live information (hours, FAQs) without taking it offline. The founder approved: owners/admins edit and publish; receptionists/viewers read only.
+- **Alternatives:** (a) per-row `status` column (editing a live item would unpublish it or publish unreviewed edits); (b) separate revision tables (more joins and code for little benefit at MVP scale); (c) duplicated typed columns for draft and published (doubles every schema change).
+- **Decision:** each content row holds `draft` and `published` JSON objects. Pydantic models define and validate the shape (plain text, structured opening hours); the database enforces type, size and the publication invariants via triggers and column grants (revision increments, publish only the current draft, server-set publisher/time, archive unpublishes, no tenant moves, no DELETE). The API adds optimistic locking on revisions.
+- **Consequences:** publication rules hold even if API code is wrong (verified by mutation testing: with the API role check removed, the database still blocked receptionist writes). Content shape changes need a Pydantic change (and a data migration if a field becomes stricter). Phase 3 reads only `published`. The unused Phase 1 `clinic_profiles` columns were dropped (no data existed).

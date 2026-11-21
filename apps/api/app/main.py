@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app import errors
 from app.config import get_settings
 from app.db import Database
+from app.routes.content import router as content_router
 from app.routes.health import router as health_router
 from app.routes.me import router as me_router
 from app.routes.platform import router as platform_router
@@ -64,4 +65,5 @@ app.include_router(health_router)
 app.include_router(public_router, prefix="/api/v1")
 app.include_router(me_router, prefix="/api/v1")
 app.include_router(tenants_router, prefix="/api/v1")
+app.include_router(content_router, prefix="/api/v1")
 app.include_router(platform_router, prefix="/api/v1")

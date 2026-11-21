@@ -21,7 +21,6 @@ from app.deps import (
 )
 from app.errors import ApiError, forbidden, not_found
 from app.schemas import (
-    ClinicProfileOut,
     InviteMemberIn,
     MemberOut,
     TenantDetailOut,
@@ -60,16 +59,10 @@ def get_tenant(
         tenant = conn.execute(
             f"select {_TENANT_COLUMNS} from public.tenants where id = %s", (tenant_id,)  # noqa: S608
         ).fetchone()
-        profile = conn.execute(
-            """select public_phone, public_email, public_address, opening_hours, public_description
-               from public.clinic_profiles where tenant_id = %s""",
-            (tenant_id,),
-        ).fetchone()
     if tenant is None:
         raise not_found()
     return TenantDetailOut(
         tenant=TenantOut(**tenant),
-        profile=ClinicProfileOut(**profile) if profile else None,
         my_role=role,
     )
 

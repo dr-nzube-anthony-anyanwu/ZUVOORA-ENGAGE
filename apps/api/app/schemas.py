@@ -71,17 +71,8 @@ class TenantOut(BaseModel):
     created_at: datetime
 
 
-class ClinicProfileOut(BaseModel):
-    public_phone: str | None
-    public_email: str | None
-    public_address: str | None
-    opening_hours: dict
-    public_description: str | None
-
-
 class TenantDetailOut(BaseModel):
     tenant: TenantOut
-    profile: ClinicProfileOut | None
     my_role: Role
 
 

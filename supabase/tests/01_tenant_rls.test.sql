@@ -47,10 +47,10 @@ insert into public.tenants (id, legal_name, display_name, status) values
   ('10000000-0000-4000-8000-00000000000b', 'Clinic B Ltd', 'Clinic B', 'active'),
   ('10000000-0000-4000-8000-00000000000c', 'Clinic S Ltd', 'Clinic S', 'suspended');
 
-insert into public.clinic_profiles (tenant_id, public_phone) values
-  ('10000000-0000-4000-8000-00000000000a', '+234-000-000-0001'),
-  ('10000000-0000-4000-8000-00000000000b', '+234-000-000-0002'),
-  ('10000000-0000-4000-8000-00000000000c', '+234-000-000-0003');
+insert into public.clinic_profiles (tenant_id, draft) values
+  ('10000000-0000-4000-8000-00000000000a', '{"public_phone": "+234-000-000-0001"}'),
+  ('10000000-0000-4000-8000-00000000000b', '{"public_phone": "+234-000-000-0002"}'),
+  ('10000000-0000-4000-8000-00000000000c', '{"public_phone": "+234-000-000-0003"}');
 
 insert into public.tenant_memberships (tenant_id, user_id, role, is_active, revoked_at) values
   ('10000000-0000-4000-8000-00000000000a', '00000000-0000-4000-8000-0000000000a1', 'owner', true, null),
@@ -107,7 +107,7 @@ select is_empty($$select 1 from public.clinic_profiles where tenant_id = '100000
   'A owner cannot read B clinic profile (guessed UUID)');
 select is_empty($$select 1 from public.tenant_memberships where tenant_id = '10000000-0000-4000-8000-00000000000b'$$,
   'A owner cannot read B memberships');
-select results_eq($$with u as (update public.clinic_profiles set public_phone = 'pwned'
+select results_eq($$with u as (update public.clinic_profiles set draft = '{"public_phone": "pwned"}'
     where tenant_id = '10000000-0000-4000-8000-00000000000b' returning 1) select count(*)::int from u$$,
   array[0], 'A owner cannot update B clinic profile');
 select throws_ok($$insert into public.tenant_memberships (tenant_id, user_id, role)
@@ -129,7 +129,7 @@ select pg_temp.login('a.receptionist@test.invalid');
 set local role engage_app;
 select results_eq($$select count(*)::int from public.clinic_profiles where tenant_id = '10000000-0000-4000-8000-00000000000a'$$,
   array[1], 'Receptionist can read own clinic profile');
-select results_eq($$with u as (update public.clinic_profiles set public_phone = 'x'
+select results_eq($$with u as (update public.clinic_profiles set draft = '{"public_phone": "x"}'
     where tenant_id = '10000000-0000-4000-8000-00000000000a' returning 1) select count(*)::int from u$$,
   array[0], 'Receptionist cannot update clinic profile');
 select throws_ok($$insert into public.tenant_memberships (tenant_id, user_id, role)
@@ -163,7 +163,7 @@ reset role;
 
 select pg_temp.login('a.owner@test.invalid');
 set local role engage_app;
-select results_eq($$with u as (update public.clinic_profiles set public_phone = '+234-000-000-0099'
+select results_eq($$with u as (update public.clinic_profiles set draft = '{"public_phone": "+234-000-000-0099"}'
     where tenant_id = '10000000-0000-4000-8000-00000000000a' returning 1) select count(*)::int from u$$,
   array[1], 'Owner can update own clinic profile (positive control)');
 select results_eq($$with u as (update public.tenants set status = 'active'
@@ -229,7 +229,7 @@ select pg_temp.login('s.owner@test.invalid');
 set local role engage_app;
 select is_empty('select 1 from public.tenants', 'Suspended tenant owner sees no tenants');
 select is_empty('select 1 from public.clinic_profiles', 'Suspended tenant owner cannot read profile');
-select results_eq($$with u as (update public.clinic_profiles set public_phone = 'x'
+select results_eq($$with u as (update public.clinic_profiles set draft = '{"public_phone": "x"}'
     where tenant_id = '10000000-0000-4000-8000-00000000000c' returning 1) select count(*)::int from u$$,
   array[0], 'Suspended tenant owner cannot update profile');
 reset role;

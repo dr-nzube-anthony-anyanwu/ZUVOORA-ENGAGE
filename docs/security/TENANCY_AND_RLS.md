@@ -49,6 +49,32 @@ triggers (even for the table owner). Events record actor, tenant, action, target
 id. Metadata never contains message content, tokens or secrets. Users can only write events as
 themselves about tenants they belong to.
 
+## Clinic content: draft and publish (Phase 2a, ADR-021)
+Tables `clinic_profiles` (one per tenant), `branches`, `services`, `faqs`. Same tenancy rules:
+all members read, owners/admins (and MFA platform admins) write; no DELETE (archive instead).
+- Each row has a `draft` and an optional `published` copy (validated JSON, ≤ 64 KB). Only
+  `published` content will ever reach the public assistant (Phase 3).
+- **The database owns the bookkeeping.** `engage_app` may write only `draft`, `published` and
+  `archived_at` (column grants; no insert of `published`). Triggers:
+  - increment `revision` whenever the draft changes;
+  - allow `published` to be set only to the current `draft`, stamping `published_revision`,
+    `published_at`, `published_by` (the caller) — a client cannot publish unreviewed text or
+    spoof the publisher;
+  - archiving always unpublishes; archived content cannot be published; archive time/actor are
+    server-set;
+  - content can never move to another tenant.
+- **Optimistic locking in the API.** Draft edits carry the revision the editor loaded and
+  publishing carries the exact revision the reviewer approved; any mismatch returns
+  `409 revision_conflict`, so nobody overwrites or publishes changes they have not seen.
+- Editing a published item leaves the published copy live (`state = changes_pending`) until the
+  new revision is published.
+- Text is plain text only (NFC-normalised, control and bidi-override characters rejected,
+  single-line fields reject line breaks). Opening hours are structured (7 days, ≤ 3
+  non-overlapping 24h ranges per day, dated exceptions) so the assistant can answer
+  deterministically. Per-tenant caps: 50 branches, 200 services, 500 FAQs.
+- Every create/edit/publish/unpublish/archive/restore writes an audit event in the same
+  transaction.
+
 ## Adding a tenant-owned table (checklist)
 1. `tenant_id uuid not null references public.tenants(id)`.
 2. `enable` + `force row level security`.
