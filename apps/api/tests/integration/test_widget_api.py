@@ -136,8 +136,9 @@ def test_conversation_flow_and_storage(client, site, world, admin_db):
     reply = say(client, token)
     assert reply.status_code == 200, reply.text
     body = reply.json()
-    assert body["reply"]["source"] == "fallback"  # honest "not available yet" until Phase 3c/3d
-    assert body["reply"]["offer_handover"] is True
+    # An hours question is answered from facts (published hours, or "not published yet").
+    assert body["reply"]["source"] == "facts"
+    assert body["reply"]["content"]
     rows = admin_db.execute(
         "select m.role::text, m.content, c.origin_host from public.messages m "
         "join public.conversations c on c.id = m.conversation_id "

@@ -62,6 +62,10 @@
   form.append(input, send);
 
   const handover = buildHandoverForm();
+  // A person is always one click away, not only when the assistant cannot answer.
+  const askTeam = el("button", "ask-team", "Contact the clinic team");
+  askTeam.type = "button";
+  askTeam.addEventListener("click", () => showHandover());
   const footer = el("p", "foot",
     "Automated assistant for clinic information — not medical advice. In an emergency, go to the nearest emergency department.");
 
@@ -79,7 +83,7 @@
     }
     title.textContent = config.clinic;
     document.title = `Chat with ${config.clinic}`;
-    app.append(header, log, handover, form, footer);
+    app.append(header, log, handover, form, askTeam, footer);
     addMessage("assistant", config.greeting);
   }
 
@@ -125,7 +129,7 @@
       const result = await post<{ reply: { content: string; offer_handover: boolean } }>(
         "/api/v1/public/widget/messages", { token: await ensureSession(), text });
       addMessage("assistant", result.reply.content);
-      if (result.reply.offer_handover) handover.hidden = false;
+      if (result.reply.offer_handover) showHandover(false);
     } catch (error) {
       addMessage("system", (error as Error).message);
     } finally {
@@ -141,6 +145,12 @@
       form.requestSubmit();
     }
   });
+
+  function showHandover(focus = true): void {
+    handover.hidden = false;
+    askTeam.hidden = true;
+    if (focus) handover.querySelector("input")?.focus();
+  }
 
   function buildHandoverForm(): HTMLFormElement {
     const box = el("form", "handover");

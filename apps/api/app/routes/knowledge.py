@@ -32,6 +32,7 @@ from app.deps import (
 from app.errors import ApiError, forbidden, not_found
 from app.schemas import StrictModel
 from app.security.jwt import Principal
+from app.services.answering.chunking import chunk_text
 from app.services.extraction import (
     MAX_UPLOAD_BYTES,
     Extraction,
@@ -407,6 +408,35 @@ def get_version(
     return VersionDetailOut(**base.model_dump(), extracted_text=row["extracted_text"])
 
 
+def _index_version(
+    conn: psycopg.Connection,
+    tenant_id: uuid.UUID,
+    document_id: uuid.UUID,
+    version_id: uuid.UUID,
+) -> None:
+    """Split an approved version into retrieval passages (once per version, same transaction)."""
+    if conn.execute(
+        "select 1 from public.knowledge_chunks where version_id = %s limit 1", (version_id,)
+    ).fetchone():
+        return
+    text = (
+        conn.execute(
+            "select extracted_text from public.knowledge_document_versions where id = %s",
+            (version_id,),
+        ).fetchone()["extracted_text"]
+        or ""
+    )
+    with conn.cursor() as cur:
+        cur.executemany(
+            "insert into public.knowledge_chunks "
+            "(tenant_id, document_id, version_id, ordinal, content) values (%s, %s, %s, %s, %s)",
+            [
+                (tenant_id, document_id, version_id, i, chunk)
+                for i, chunk in enumerate(chunk_text(text))
+            ],
+        )
+
+
 def _review(
     tenant_id: uuid.UUID,
     document_id: uuid.UUID,
@@ -454,6 +484,7 @@ def _review(
                     ),
                 )
             if approve:
+                _index_version(conn, tenant_id, document_id, version_id)
                 conn.execute(
                     "update public.knowledge_documents set published_version_id = %s "
                     "where id = %s and tenant_id = %s",

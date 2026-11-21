@@ -29,7 +29,8 @@ from app.db import Database
 from app.deps import get_db
 from app.errors import ApiError, log_security_event
 from app.schemas import StrictModel
-from app.services.assistant import AnswerContext, Responder, Turn, UnavailableResponder
+from app.services.answering.pipeline import FactsFirstResponder
+from app.services.assistant import AnswerContext, Responder, Turn
 from app.services.widget_tokens import ConversationToken, WidgetTokenError, WidgetTokens
 
 router = APIRouter(tags=["public widget"])
@@ -60,7 +61,7 @@ def get_widget_tokens(request: Request) -> WidgetTokens:
 
 
 def get_responder(request: Request) -> Responder:
-    return getattr(request.app.state, "responder", None) or UnavailableResponder()
+    return getattr(request.app.state, "responder", None) or FactsFirstResponder()
 
 
 def _client_ip(request: Request) -> str:

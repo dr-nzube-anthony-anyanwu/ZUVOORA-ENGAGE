@@ -1,0 +1,83 @@
+"""The answering pipeline (Phase 3c): free, deterministic steps first.
+
+Order: emergency → medical-advice refusal → structured facts → strong FAQ match → (3d: AI with
+retrieved passages) → honest fallback with a handover offer. Everything reads only the widget
+tenant's PUBLISHED content through the widget-role transaction.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from datetime import UTC, datetime
+
+import psycopg
+
+from app.services.answering import facts as facts_mod
+from app.services.answering import retrieval, safety
+from app.services.assistant import Answer, AnswerContext
+
+FAQ_MIN_COVERAGE = 0.6
+FALLBACK = (
+    "I'm sorry, I don't have that information. I can only answer from what {clinic} has "
+    "published. Would you like the clinic team to contact you?"
+)
+
+
+class FactsFirstResponder:
+    """Answers without any model. Phase 3d extends the 'no deterministic answer' branch."""
+
+    def __init__(self, clock: Callable[[], datetime] | None = None) -> None:
+        self._clock = clock or (lambda: datetime.now(UTC))
+
+    def _clinic(self, conn: psycopg.Connection) -> str:
+        row = conn.execute("select app_private.widget_clinic_name() as name").fetchone()
+        return row["name"] if row and row["name"] else "the clinic"
+
+    def answer(self, conn: psycopg.Connection, context: AnswerContext) -> Answer:
+        question = context.question
+        clinic = self._clinic(conn)
+        facts = facts_mod.load_facts(conn, clinic)
+
+        if safety.is_emergency(question):
+            return Answer(
+                text=safety.emergency_reply(facts.profile.get("emergency_guidance"), facts.phone),
+                source="emergency",
+                offer_handover=True,
+                safety={"rule": "emergency"},
+            )
+        if safety.asks_for_medical_advice(question):
+            return Answer(
+                text=safety.medical_advice_reply(clinic, facts.phone),
+                source="facts",
+                offer_handover=True,
+                safety={"rule": "medical_advice_refused"},
+            )
+
+        reply, found = facts_mod.answer_from_facts(facts, question, self._clock())
+        if reply is not None:
+            missing = reply.startswith("I'm sorry")
+            return Answer(
+                text=reply, source="facts", offer_handover=missing, safety={"intents": found}
+            )
+
+        passages = retrieval.search(conn, question)
+        best_faq = next((p for p in passages if p.kind == "faq"), None)
+        if best_faq and best_faq.coverage >= FAQ_MIN_COVERAGE and passages[0] is best_faq:
+            return Answer(text=best_faq.text, source="facts", safety={"faq": best_faq.title})
+
+        return self.no_deterministic_answer(conn, context, clinic, passages)
+
+    def no_deterministic_answer(
+        self,
+        conn: psycopg.Connection,
+        context: AnswerContext,
+        clinic: str,
+        passages: list[retrieval.Passage],
+    ) -> Answer:
+        """Phase 3c: honest fallback. Phase 3d: AI answer grounded in `passages`."""
+        return Answer(
+            text=FALLBACK.format(clinic=clinic),
+            source="fallback",
+            offer_handover=True,
+            safety={"passages": len(passages)},
+        )

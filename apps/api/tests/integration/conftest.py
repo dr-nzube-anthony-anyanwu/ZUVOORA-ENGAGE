@@ -275,3 +275,12 @@ def world(client, gotrue, admin_db) -> World:
         ).raise_for_status()
     admin_db.execute("delete from public.tenants where id = any(%s)", (created,))
     admin_db.execute("delete from public.platform_admins where user_id = %s", (platform_admin.id,))
+
+
+@pytest.fixture(autouse=True)
+def generous_widget_rate_limits(monkeypatch):
+    """All test requests share one client IP; tests that check limits set their own values."""
+    from app.routes import widget_public
+
+    for kind, (window, _) in list(widget_public.LIMITS.items()):
+        monkeypatch.setitem(widget_public.LIMITS, kind, (window, 100_000))

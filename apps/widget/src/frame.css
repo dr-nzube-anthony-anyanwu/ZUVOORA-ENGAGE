@@ -24,4 +24,7 @@ body { font:14px/1.5 Arial, Helvetica, sans-serif; color:var(--ink); background:
 .field input { font:inherit; font-weight:400; padding:7px 9px; border:1px solid var(--line); border-radius:8px; }
 .consent { font-size:12px; display:flex; gap:6px; align-items:flex-start; }
 .hint { margin:0; font-size:12px; color:var(--muted); }
+.ask-team { align-self:center; margin:2px 0 0; font:inherit; font-size:13px; font-weight:700; background:none; border:0; color:var(--teal); text-decoration:underline; cursor:pointer; padding:2px 6px; }
+.ask-team[hidden] { display:none; }
+.ask-team:focus-visible, .close:focus-visible { outline:2px solid var(--teal); outline-offset:2px; }
 .foot { margin:0; padding:6px 12px 8px; font-size:11px; color:var(--muted); text-align:center; }

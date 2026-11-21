@@ -17,9 +17,15 @@ test("widget chat and handover work on the verified clinic website", async ({ pa
   await chat.getByLabel("Your message").fill('<img src=x onerror="parent.__xss=1"> Are you open on Saturday?');
   await chat.getByRole("button", { name: "Send", exact: true }).click();
   await expect(chat.getByText(/<img src=x onerror=/)).toBeVisible();  // shown as text
-  await expect(chat.getByText(/can't answer questions yet/)).toBeVisible();
+  // Answered only from published data: the Lekki branch's Saturday hours published by
+  // clinic-admin.spec (runs first), or — when this file runs alone — an honest "not published".
+  await expect(
+    chat.getByText(/Lekki: open 09:00.13:00 on Saturday|hasn't published its opening hours/),
+  ).toBeVisible();
   expect(await page.evaluate(() => (window as unknown as { __xss?: number }).__xss)).toBeUndefined();
 
+  // A person is always reachable, even after a good answer.
+  await chat.getByRole("button", { name: "Contact the clinic team" }).click();
   await chat.getByLabel("Phone").fill("+234 801 000 0000");
   await chat.getByRole("checkbox").check();
   await chat.getByRole("button", { name: "Send my details" }).click();
