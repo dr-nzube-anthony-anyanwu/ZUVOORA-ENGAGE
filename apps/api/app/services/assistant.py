@@ -1,15 +1,16 @@
 """Answering interface for the public widget.
 
-The widget route calls a `Responder`. Phase 3b ships `UnavailableResponder`, which says plainly
-that the assistant is not available yet and offers a handover (an explicit not-implemented state,
-never a fake answer). Phase 3c/3d add the facts/emergency/retrieval/AI pipeline behind the same
-interface.
+The widget route calls a `Responder`. `UnavailableResponder` says plainly that the assistant is
+not available and offers a handover (an explicit not-implemented state, never a fake answer).
+The facts/emergency/retrieval pipeline (3c) and the AI step (3d) sit behind the same interface.
 """
 
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import Literal, Protocol
 
 import psycopg
@@ -42,10 +43,45 @@ class Answer:
     safety: dict = field(default_factory=dict)
 
 
+@dataclass(frozen=True)
+class Usage:
+    """One model call for the usage ledger (`public.usage_events`)."""
+
+    provider: Literal["openrouter", "fake"]
+    model: str
+    tier: Literal["standard", "complex"]
+    prompt_tokens: int
+    completion_tokens: int
+    cost_usd: Decimal
+
+
+@dataclass(frozen=True)
+class Completed:
+    answer: Answer
+    usage: Usage | None = None
+
+
+@dataclass(frozen=True)
+class PendingAnswer:
+    """Work that must run WITHOUT a database transaction open (a model call).
+
+    The route commits the visitor's message first, calls `complete()`, then stores the answer and
+    its usage in a second short transaction, so no row locks are held during the network call.
+    """
+
+    complete: Callable[[], Completed]
+
+
 class Responder(Protocol):
-    def answer(self, conn: psycopg.Connection, context: AnswerContext) -> Answer:
+    def answer(self, conn: psycopg.Connection, context: AnswerContext) -> Answer | PendingAnswer:
         """Produce an answer. `conn` is a widget-role transaction (published content only)."""
         ...
+
+
+FALLBACK = (
+    "I'm sorry, I don't have that information. I can only answer from what {clinic} has "
+    "published. Would you like the clinic team to contact you?"
+)
 
 
 class UnavailableResponder:

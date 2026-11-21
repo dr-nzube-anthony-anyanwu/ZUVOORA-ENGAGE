@@ -30,7 +30,14 @@ from app.deps import get_db
 from app.errors import ApiError, log_security_event
 from app.schemas import StrictModel
 from app.services.answering.pipeline import FactsFirstResponder
-from app.services.assistant import AnswerContext, Responder, Turn
+from app.services.assistant import (
+    Answer,
+    AnswerContext,
+    PendingAnswer,
+    Responder,
+    Turn,
+    Usage,
+)
 from app.services.widget_tokens import ConversationToken, WidgetTokenError, WidgetTokens
 
 router = APIRouter(tags=["public widget"])
@@ -288,6 +295,40 @@ def _open_conversation(conn: psycopg.Connection) -> dict:
     return row
 
 
+def _save_reply(
+    conn: psycopg.Connection, ctx: ConversationToken, answer: Answer, usage: Usage | None
+) -> None:
+    conn.execute(
+        "insert into public.messages "
+        "(tenant_id, conversation_id, role, content, answer_source, model, safety) "
+        "values (%s, %s, 'assistant', %s, %s, %s, %s::jsonb)",
+        (
+            ctx.tenant_id,
+            ctx.conversation_id,
+            answer.text,
+            answer.source,
+            answer.model,
+            json.dumps(answer.safety),
+        ),
+    )
+    if usage is not None:
+        conn.execute(
+            "insert into public.usage_events (tenant_id, conversation_id, feature, provider, "
+            "model, tier, prompt_tokens, completion_tokens, cost_usd) "
+            "values (%s, %s, 'chat', %s, %s, %s, %s, %s, %s)",
+            (
+                ctx.tenant_id,
+                ctx.conversation_id,
+                usage.provider,
+                usage.model,
+                usage.tier,
+                usage.prompt_tokens,
+                usage.completion_tokens,
+                usage.cost_usd,
+            ),
+        )
+
+
 @router.post("/api/v1/public/widget/messages", response_model=MessageOut)
 def send_message(
     body: MessageIn,
@@ -325,7 +366,7 @@ def send_message(
             "values (%s, %s, 'visitor', %s)",
             (ctx.tenant_id, ctx.conversation_id, body.text),
         )
-        answer = responder.answer(
+        result = responder.answer(
             conn,
             AnswerContext(
                 tenant_id=ctx.tenant_id,
@@ -334,19 +375,20 @@ def send_message(
                 history=history,
             ),
         )
-        conn.execute(
-            "insert into public.messages "
-            "(tenant_id, conversation_id, role, content, answer_source, model, safety) "
-            "values (%s, %s, 'assistant', %s, %s, %s, %s::jsonb)",
-            (
-                ctx.tenant_id,
-                ctx.conversation_id,
-                answer.text,
-                answer.source,
-                answer.model,
-                json.dumps(answer.safety),
-            ),
-        )
+        if isinstance(result, Answer):
+            answer = result
+            _save_reply(conn, ctx, answer, None)
+    if isinstance(result, PendingAnswer):
+        # Model call with no transaction open (no row locks held during the network call).
+        completed = result.complete()
+        answer = completed.answer
+        try:
+            with db.widget_transaction(ctx.tenant_id, ctx.conversation_id) as conn:
+                _save_reply(conn, ctx, answer, completed.usage)
+        except psycopg.errors.InsufficientPrivilege as exc:  # widget disabled meanwhile
+            raise ApiError(
+                403, "widget_unavailable", "The chat is not available right now."
+            ) from exc
     return MessageOut(
         reply=ReplyOut(
             content=answer.text, source=answer.source, offer_handover=answer.offer_handover

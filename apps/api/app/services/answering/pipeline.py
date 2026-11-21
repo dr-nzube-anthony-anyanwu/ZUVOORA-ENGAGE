@@ -1,8 +1,9 @@
 """The answering pipeline (Phase 3c): free, deterministic steps first.
 
-Order: emergency → medical-advice refusal → structured facts → strong FAQ match → (3d: AI with
-retrieved passages) → honest fallback with a handover offer. Everything reads only the widget
-tenant's PUBLISHED content through the widget-role transaction.
+Order: emergency → medical-advice refusal → structured facts → strong FAQ match → AI grounded in
+the retrieved passages (3d; only when configured, passages exist and budgets allow) → honest
+fallback with a handover offer. Everything reads only the widget tenant's PUBLISHED content
+through the widget-role transaction.
 """
 
 from __future__ import annotations
@@ -12,28 +13,30 @@ from datetime import UTC, datetime
 
 import psycopg
 
+from app.services.ai.answerer import AiAnswerer, ClinicContext
 from app.services.answering import facts as facts_mod
 from app.services.answering import retrieval, safety
-from app.services.assistant import Answer, AnswerContext
+from app.services.assistant import FALLBACK, Answer, AnswerContext, PendingAnswer
+
+__all__ = ["FALLBACK", "FAQ_MIN_COVERAGE", "FactsFirstResponder"]
 
 FAQ_MIN_COVERAGE = 0.6
-FALLBACK = (
-    "I'm sorry, I don't have that information. I can only answer from what {clinic} has "
-    "published. Would you like the clinic team to contact you?"
-)
 
 
 class FactsFirstResponder:
-    """Answers without any model. Phase 3d extends the 'no deterministic answer' branch."""
+    """Deterministic answers first; the optional AI step only when nothing else applies."""
 
-    def __init__(self, clock: Callable[[], datetime] | None = None) -> None:
+    def __init__(
+        self, clock: Callable[[], datetime] | None = None, ai: AiAnswerer | None = None
+    ) -> None:
         self._clock = clock or (lambda: datetime.now(UTC))
+        self._ai = ai
 
     def _clinic(self, conn: psycopg.Connection) -> str:
         row = conn.execute("select app_private.widget_clinic_name() as name").fetchone()
         return row["name"] if row and row["name"] else "the clinic"
 
-    def answer(self, conn: psycopg.Connection, context: AnswerContext) -> Answer:
+    def answer(self, conn: psycopg.Connection, context: AnswerContext) -> Answer | PendingAnswer:
         question = context.question
         clinic = self._clinic(conn)
         facts = facts_mod.load_facts(conn, clinic)
@@ -65,16 +68,13 @@ class FactsFirstResponder:
         if best_faq and best_faq.coverage >= FAQ_MIN_COVERAGE and passages[0] is best_faq:
             return Answer(text=best_faq.text, source="facts", safety={"faq": best_faq.title})
 
-        return self.no_deterministic_answer(conn, context, clinic, passages)
-
-    def no_deterministic_answer(
-        self,
-        conn: psycopg.Connection,
-        context: AnswerContext,
-        clinic: str,
-        passages: list[retrieval.Passage],
-    ) -> Answer:
-        """Phase 3c: honest fallback. Phase 3d: AI answer grounded in `passages`."""
+        if self._ai is not None and passages:  # nothing retrieved -> nothing to ground on
+            return self._ai.prepare(
+                conn,
+                context,
+                ClinicContext(clinic, facts.phone, facts.profile.get("emergency_guidance")),
+                passages,
+            )
         return Answer(
             text=FALLBACK.format(clinic=clinic),
             source="fallback",

@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Callable, Iterator
 from typing import Any
 
 import pytest
 
-from app.main import app
+# Tests never call a real model or spend credit: AI is forced off and the key removed before the
+# app (and its settings) load. AI tests inject a FakeGateway explicitly.
+os.environ["AI_ENABLED"] = "false"
+os.environ["OPENROUTER_API_KEY"] = ""
+
+from app.main import app  # noqa: E402
 
 _MISSING = object()
 

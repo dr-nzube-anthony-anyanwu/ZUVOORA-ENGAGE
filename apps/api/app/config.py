@@ -1,10 +1,13 @@
+import re
+from decimal import Decimal
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import SecretStr, field_validator, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 Environment = Literal["development", "test", "staging", "production"]
+_MODEL_ID = re.compile(r"^[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._-]*$")
 
 
 class Settings(BaseSettings):
@@ -36,7 +39,23 @@ class Settings(BaseSettings):
 
     openrouter_api_key: SecretStr | None = None
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    openrouter_model: str | None = None
+
+    # AI answering (Phase 3d, ADR-026/029). Off unless explicitly enabled. Model lists are
+    # "primary,backup" OpenRouter ids, pinned (no "~...-latest" aliases).
+    ai_enabled: bool = False
+    # GLM 5.3 Flash was the planned standard backup, but it cannot run with reasoning disabled
+    # (HTTP 400, verified 2026-11-22); reasoning tokens would add cost/latency, so GPT-6 Luna.
+    ai_standard_models: str = "deepseek/deepseek-v4-flash,openai/gpt-6-luna"
+    ai_complex_models: str = "deepseek/deepseek-v4.1-flash,openai/gpt-6-luna"
+    ai_timeout_seconds: float = 20.0
+    ai_max_output_tokens: int = Field(default=300, ge=50, le=800)
+    # Founder-approved budgets in USD (ADR-026).
+    ai_budget_tenant_daily_usd: Decimal = Decimal("0.20")
+    ai_budget_global_daily_usd: Decimal = Decimal("0.50")
+    ai_budget_global_monthly_usd: Decimal = Decimal("2.00")
+    # Worst-case provider price, USD per million tokens; also sent as OpenRouter `max_price`.
+    ai_max_prompt_usd_per_mtok: Decimal = Decimal("0.50")
+    ai_max_completion_usd_per_mtok: Decimal = Decimal("1.00")
     resend_api_key: SecretStr | None = None
     email_from: str | None = None
     redis_url: str = "redis://localhost:6379/0"
@@ -57,6 +76,42 @@ class Settings(BaseSettings):
     @classmethod
     def strip_trailing_slash(cls, value: str | None) -> str | None:
         return value.rstrip("/") if value else value
+
+    @field_validator("ai_standard_models", "ai_complex_models")
+    @classmethod
+    def pinned_model_list(cls, value: str) -> str:
+        models = [x.strip() for x in value.split(",") if x.strip()]
+        if not 1 <= len(models) <= 3:
+            raise ValueError("give one primary model and at most two backups")
+        for model in models:
+            if not _MODEL_ID.match(model):
+                raise ValueError(f"not a pinned OpenRouter model id: {model!r}")
+        return ",".join(models)
+
+    @model_validator(mode="after")
+    def ai_settings_are_consistent(self) -> "Settings":
+        if self.ai_enabled and self.openrouter_api_key is None:
+            raise ValueError("AI_ENABLED requires OPENROUTER_API_KEY")
+        if self.ai_enabled and not self.openrouter_base_url.startswith("https://"):
+            raise ValueError("OPENROUTER_BASE_URL must use https")
+        budgets = (
+            self.ai_budget_tenant_daily_usd,
+            self.ai_budget_global_daily_usd,
+            self.ai_budget_global_monthly_usd,
+        )
+        if any(b < 0 for b in budgets) or not (
+            self.ai_budget_tenant_daily_usd
+            <= self.ai_budget_global_daily_usd
+            <= self.ai_budget_global_monthly_usd
+        ):
+            raise ValueError("AI budgets must satisfy 0 <= tenant daily <= global daily <= monthly")
+        return self
+
+    def ai_tiers(self) -> dict[str, tuple[str, ...]]:
+        return {
+            "standard": tuple(self.ai_standard_models.split(",")),
+            "complex": tuple(self.ai_complex_models.split(",")),
+        }
 
     @model_validator(mode="after")
     def enforce_production_safety(self) -> "Settings":

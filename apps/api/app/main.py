@@ -18,6 +18,7 @@ from app.routes.tenants import router as tenants_router
 from app.routes.widget_admin import router as widget_admin_router
 from app.routes.widget_public import router as widget_public_router
 from app.security.jwt import TokenVerifier
+from app.services.ai.factory import build_responder
 from app.services.domain_verification import DnsTxtVerifier
 from app.services.extraction import MAX_UPLOAD_BYTES
 from app.services.storage import SupabaseObjectStore
@@ -51,6 +52,7 @@ async def lifespan(app: FastAPI):
         if settings.supabase_url and settings.supabase_secret_key is not None
         else None
     )
+    app.state.responder = build_responder(settings)
     app.state.db = None
     if settings.database_url is not None:
         db = Database(settings)
