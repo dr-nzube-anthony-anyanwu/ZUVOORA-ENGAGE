@@ -260,5 +260,15 @@ def world(client, gotrue, admin_db) -> World:
         created_tenants=created,
     )
     yield world
+    # Stored originals are not removed by the tenant cascade; delete them via the Storage API.
+    objects = [row[0] for row in admin_db.execute(
+        "select storage_path from public.knowledge_document_versions where tenant_id = any(%s)",
+        (created,),
+    ).fetchall()]
+    if objects:
+        httpx.request(
+            "DELETE", f"{gotrue.url}/storage/v1/object/knowledge-originals",
+            headers=gotrue._admin_headers(), json={"prefixes": objects}, timeout=30,
+        ).raise_for_status()
     admin_db.execute("delete from public.tenants where id = any(%s)", (created,))
     admin_db.execute("delete from public.platform_admins where user_id = %s", (platform_admin.id,))

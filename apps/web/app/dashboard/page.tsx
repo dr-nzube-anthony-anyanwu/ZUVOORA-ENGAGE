@@ -62,7 +62,11 @@ export default async function DashboardPage() {
           <ul className="list">
             {me.memberships.map((m) => (
               <li key={m.tenant_id}>
-                <strong>{m.tenant_display_name ?? "Unavailable clinic"}</strong>
+                {m.accessible ? (
+                  <Link href={`/clinics/${m.tenant_id}`}><strong>{m.tenant_display_name}</strong></Link>
+                ) : (
+                  <strong>{m.tenant_display_name ?? "Unavailable clinic"}</strong>
+                )}
                 <span className="muted"> · {ROLE_LABEL[m.role]}</span>
                 {!m.accessible && (
                   <span className="status warn">

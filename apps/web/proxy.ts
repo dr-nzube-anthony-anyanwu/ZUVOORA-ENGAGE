@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PROTECTED_PREFIXES = ["/dashboard", "/mfa", "/account"];
+const PROTECTED_PREFIXES = ["/dashboard", "/clinics", "/mfa", "/account"];
 
 /**
  * Refreshes the Supabase session cookie and redirects anonymous users away from protected pages.

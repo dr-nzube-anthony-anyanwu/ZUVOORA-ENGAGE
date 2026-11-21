@@ -32,6 +32,11 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   // The repository root also has a package-lock.json (Supabase CLI tooling); pin the app root.
   turbopack: { root: __dirname },
+  experimental: {
+    // Document uploads (10 MB files) go through a Server Action; everything else is tiny.
+    // The API enforces the real limit and checks file contents.
+    serverActions: { bodySizeLimit: "11mb" },
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

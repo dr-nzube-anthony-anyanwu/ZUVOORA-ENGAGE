@@ -38,3 +38,9 @@ id_ed25519*
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Playwright (E2E) output and generated local fixtures
+apps/web/playwright-report/
+apps/web/test-results/
+apps/web/blob-report/
+apps/web/e2e/.auth/

@@ -55,6 +55,18 @@ select id, 'local dev admin' from auth.users where email = 'you@example.com';
 Sign in at `http://localhost:3073/login`, then set up two-factor authentication at `/mfa`.
 Platform actions (create/suspend clinics) require the MFA-verified session.
 
+## 4b. Dashboard end-to-end tests (Playwright)
+Real browser -> dashboard (production build) -> API -> local Supabase. Synthetic users and two
+clinics are created before the run and removed afterwards (including stored files). The run
+refuses to start unless Supabase is on localhost. Ports 8073 and 3073 must be free.
+```powershell
+cd apps\web
+npx playwright install chromium   # first time only
+npm run build
+npm run test:e2e
+```
+CI runs the same tests in the `database-and-api` job.
+
 ## 5. Widget
 ```powershell
 cd apps\widget
