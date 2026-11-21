@@ -26,6 +26,8 @@
 | ADR-022 | Website ownership proven by DNS TXT record; one verified holder per hostname | Accepted (Phase 2b, 2026-11-21) |
 | ADR-023 | Knowledge uploads: content-sniffed, extracted in an isolated worker, originals in a policy-less private bucket, immutable reviewed versions | Accepted (Phase 2c, 2026-11-21) |
 | ADR-024 | Dashboard reads and writes only through server-side code (Server Components + Server Actions) calling the API | Accepted (Phase 2d, 2026-11-21) |
+| ADR-025 | Public widget traffic runs as a dedicated `engage_widget` role that can read only published content | Accepted (Phase 3a, 2026-11-21) |
+| ADR-026 | Cost-first AI: deterministic answers and Postgres text search before any model; cheap tiered OpenRouter models with backups; hard budgets | Accepted (Phase 3 plan, 2026-11-21) |
 
 ### ADR-011 — Next.js 16
 - **Context:** `eslint.config.mjs` used the Next 16 flat-config entry points, so lint failed on Next 15; Next 15 also pulled a high-severity `postcss` advisory (npm's only fix was Next 16.4.6); the webpack build failed on the exFAT SSD (`EISDIR readlink`).
@@ -97,3 +99,13 @@ Record context, alternatives, decision and consequences for every major architec
 - **Alternatives:** browser fetch to the API with the Supabase session token; a separate BFF service.
 - **Decision:** pages are Server Components that load data from the API with the user's session on the Next.js server; all writes are Server Actions (`apps/web/lib/actions.ts`). `lib/api.ts` is `server-only`. Every action treats its arguments as untrusted (bound arguments travel through the browser): ids must be UUIDs and kinds/verbs come from fixed lists before an API path is built; the API re-authorises everything. Next.js's built-in Origin check protects actions against CSRF. Server Action body limit raised to 11 MB for document uploads only (the API enforces 10 MB and checks contents). All clinic text is rendered by React as text (no HTML injection); extracted document text is shown in a `<pre>` block.
 - **Consequences:** the browser never learns the API URL or holds an API token; `npm run check:bundle` confirms no server code or secrets in client chunks. Hiding forms for read-only roles is a convenience only. Playwright E2E tests (ADR-021..023 features through the UI) run locally and in CI.
+
+### ADR-025 — Dedicated database role for anonymous widget traffic
+- **Context:** the public chat widget has no signed-in user, so the Phase 1 `engage_app` + JWT-claims model does not apply. Using the backend's own privileges for public traffic would put tenant isolation entirely in application code.
+- **Decision:** a NOLOGIN `engage_widget` role, switched to per transaction with a server-derived tenant and conversation. Column grants expose only published content; RLS confines rows to the tenant and the visitor's own conversation; narrow SECURITY DEFINER functions resolve widget keys against verified domains, count rate limits and report AI spend.
+- **Consequences:** a bug in the public API cannot read drafts, other clinics' data or other visitors' conversations (verified by pgTAP and mutation tests). Receptionists can handle conversations and handovers.
+
+### ADR-026 — Cost-first AI architecture
+- **Context:** founder budget is small (OpenRouter balance ~$2); frontier models are too expensive for an administrative assistant.
+- **Decision:** answer from structured clinic data and fixed emergency rules without a model where possible; retrieve with PostgreSQL full-text search (no embeddings at first); when a model is needed, route by simple rules to a `standard` tier (DeepSeek V4 Flash, backup GLM 5.3 Flash) or a `complex` tier (DeepSeek V4.1 Flash, backup GPT-6 Luna) — model ids in configuration, final choice by evaluation. Every request requires no-training, zero-retention providers. Budgets: $0.20/day per clinic, $0.50/day and $2/month platform-wide (founder-approved); per-answer token caps; automated tests use a fake provider; live evaluations capped at $0.10 per run; a dedicated OpenRouter key with a credit limit is recommended as a hard stop. No patient image uploads in Phase 3.
+- **Consequences:** most common questions cost nothing; worst-case spend is bounded independently of code correctness by the key limit. Embeddings are added only if evaluation shows text search is insufficient.

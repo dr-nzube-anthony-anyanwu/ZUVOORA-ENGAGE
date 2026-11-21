@@ -68,9 +68,11 @@ Plan approved by founder 2026-11-21 (receptionists read-only; owners/admins edit
 
 - [x] Founder walkthrough on the cloud project (synthetic "ZUVOORA Demo Eye Clinic", founder as owner), 2026-11-21. Issues reported and fixed: redundant `encType` on Server Action forms (React dev warning); hydration warning caused by browser extensions (Grammarly, ColorZilla) adding `<body>` attributes → `suppressHydrationWarning` on `<body>` only. E2E now also fails on any browser console error or page error; rerun → 4 passed.
 - [x] CI green on GitHub for `10de83f` (verified via the public GitHub API): pgTAP, Ruff, pytest, Playwright E2E (first CI run), web lint/typecheck/build/bundle scan, widget, gitleaks v3, Semgrep container (no findings), Trivy. Fixed on the way: pytest `pythonpath` (CI collection error, exit 2, in the 2c/2d runs); all actions on Node 24 and pinned to commit SHAs; archived `semgrep/semgrep-action` replaced by the pinned official container.
-- **Phase 2 complete — pending founder acceptance** (2026-11-21). Carried forward: Grammarly-style extensions and patient text (Phase 3: `data-gramm="false"` on sensitive fields + staff guidance); periodic domain re-verification (Phase 3); malware scanning and stored-file retention on tenant deletion (Phase 6).
+- **Phase 2 accepted by founder** (2026-11-21). CI green for `24bff0a`. Carried forward: Grammarly-style extensions and patient text (Phase 3: `data-gramm="false"` on sensitive fields + staff guidance); periodic domain re-verification (Phase 3); malware scanning and stored-file retention on tenant deletion (Phase 6).
 
 ## Phase 3
+Plan approved by founder 2026-11-21 (ADR-026): caps $0.20/day per clinic, $0.50/day and $2/month platform-wide; no patient image uploads.
+- [x] 3a. Data model (ADR-025): `engage_widget` role, widget configs, conversations, messages, handover requests, usage ledger, rate limits. Migration `20261121000004_widget_conversations.sql`; `db lint` clean; pgTAP 201/201 (42 new in `05_widget.test.sql`). Mutation check: granting the widget role draft access and dropping the verified-host condition failed exactly tests 12 and 7; restored → pass. Note: Docker Desktop's D: file sharing broke mid-session (`supabase test db` mount error); tests run via the same `pg_prove` image with a C: copy until Docker Desktop is restarted.
 - [ ] Widget session and domain validation.
 - [ ] Conversation lifecycle and human handover.
 - [ ] OpenRouter gateway and tenant-scoped RAG.

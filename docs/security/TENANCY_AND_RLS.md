@@ -119,6 +119,27 @@ all members read, owners/admins (and MFA platform admins) write; no DELETE (arch
   replace the published version until approved; archiving unpublishes; restoring never
   republishes. Identical re-uploads are refused. Caps: 100 documents, 50 versions each.
 
+## Public widget path (Phase 3a, ADR-025)
+- Anonymous widget traffic runs as `engage_widget` (NOLOGIN; the backend switches to it per
+  transaction). The tenant and conversation come from server-side settings
+  (`request.widget.tenant_id`, `request.widget.conversation_id`) derived from a verified widget
+  token — never from request bodies.
+- **Published content only:** column grants give `engage_widget` only the `published` copy of
+  profiles, branches, services and FAQs, and only the published version's text of approved
+  documents; drafts, storage paths, domains, memberships and the audit log are unreadable. RLS
+  limits everything to the widget's tenant, which must be `active`.
+- A visitor can create a conversation for its tenant, read and post messages only in its own
+  conversation, request a handover (consent required, phone or email required) and mark its own
+  conversation for handover; it cannot close conversations or edit/delete messages.
+- `app_private.resolve_widget(key, host)` returns a tenant only for an enabled widget, an active
+  tenant and a **verified** host. `widget_allowed_hosts(key)` feeds the iframe's
+  `frame-ancestors` policy.
+- Messages and the AI usage ledger are append-only. `rate_limit_hit` stores HMAC'd bucket keys
+  (no raw IPs). `ai_spend()` returns tenant/global spend for budget enforcement.
+- Staff: all members read conversations; owners/admins/**receptionists** handle them (close,
+  resolve handovers — front-desk work); viewers read only; AI costs are visible to owners/admins;
+  only owners/admins configure the widget or rotate its key.
+
 ## Adding a tenant-owned table (checklist)
 1. `tenant_id uuid not null references public.tenants(id)`.
 2. `enable` + `force row level security`.
