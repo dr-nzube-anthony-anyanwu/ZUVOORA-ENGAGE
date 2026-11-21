@@ -93,6 +93,32 @@ all members read, owners/admins (and MFA platform admins) write; no DELETE (arch
 - Limitation: verification is checked once; periodic re-verification (record removed later)
   is planned with the Phase 3 widget/domain checks.
 
+## Knowledge documents (Phase 2c, ADR-023)
+- Owners/admins upload PDF, Word (.docx), plain text and Markdown files up to 10 MB; all members
+  can read documents and extracted text; only owners/admins approve, reject, archive, rename.
+- **Screening:** the type is decided from the file's own bytes and the extension must agree;
+  the browser's MIME type is ignored. Request bodies over the limit are refused while streaming
+  (ASGI middleware), before multipart parsing.
+- **Isolated extraction:** parsing runs only in `extract_worker.py`, a separate `python -I`
+  process with a 30 s timeout, an empty environment (no secrets), no database access and, on
+  Linux/Docker, memory (768 MB), CPU and file-write limits. Rejected: encrypted PDFs; PDF
+  JavaScript, launch/submit/import actions, XFA forms and embedded files/attachments; Word
+  macros, embedded objects/ActiveX; zip bombs (size, entry count, compression ratio); non-UTF-8
+  text; documents without selectable text (scans) or over 300,000 characters. Extracted text is
+  normalised plain text (control and bidi characters removed).
+- **Rejected files are never stored**; the rejection reason is audited.
+- **Originals** go to the private `knowledge-originals` bucket as opaque
+  `application/octet-stream`, never overwritten, at a database-generated path
+  `tenant/document/version`. `storage.objects` has **no policies**, so browser keys (anon or
+  signed-in) cannot list, read, sign or write them — only the backend's secret key can. The
+  database row and the stored object are written in one transaction (storage failure rolls back).
+  Originals are not served to anyone in Phase 2.
+- **Versions are immutable** (text, hash, size, path). Status moves only `extracted → approved |
+  rejected`, stamped with reviewer and time by the database. Only an approved version of the
+  same document and tenant can be published (trigger + composite foreign key). New uploads never
+  replace the published version until approved; archiving unpublishes; restoring never
+  republishes. Identical re-uploads are refused. Caps: 100 documents, 50 versions each.
+
 ## Adding a tenant-owned table (checklist)
 1. `tenant_id uuid not null references public.tenants(id)`.
 2. `enable` + `force row level security`.

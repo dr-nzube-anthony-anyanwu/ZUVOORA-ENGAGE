@@ -11,6 +11,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.middleware import PayloadTooLarge
+
 security_log = logging.getLogger("engage.security")
 app_log = logging.getLogger("engage.app")
 
@@ -66,6 +68,13 @@ def install(app: FastAPI) -> None:
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Cache-Control"] = "no-store"
         return response
+
+    @app.exception_handler(PayloadTooLarge)
+    async def too_large_handler(request: Request, exc: PayloadTooLarge) -> JSONResponse:
+        return JSONResponse(
+            _body("payload_too_large", "Request body is too large.", request), 413,
+            headers={"Connection": "close"},
+        )
 
     @app.exception_handler(ApiError)
     async def api_error_handler(request: Request, exc: ApiError) -> JSONResponse:

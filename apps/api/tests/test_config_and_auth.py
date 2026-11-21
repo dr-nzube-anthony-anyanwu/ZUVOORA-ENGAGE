@@ -43,10 +43,10 @@ def test_secrets_not_exposed_in_repr():
     assert "placeholder" not in repr(settings)
 
 
-def test_protected_routes_fail_closed_without_auth_config(monkeypatch):
+def test_protected_routes_fail_closed_without_auth_config(app_state):
     # No verifier/database configured -> explicit 503, never data.
-    monkeypatch.setattr(app.state, "verifier", None, raising=False)
-    monkeypatch.setattr(app.state, "db", None, raising=False)
+    app_state("verifier", None)
+    app_state("db", None)
     response = client.get("/api/v1/me", headers={"Authorization": "Bearer x"})
     assert response.status_code == 503
     assert response.json()["error"]["code"] == "auth_unavailable"

@@ -7,15 +7,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from app import errors
 from app.config import get_settings
 from app.db import Database
+from app.middleware import BodySizeLimitMiddleware
 from app.routes.content import router as content_router
 from app.routes.domains import router as domains_router
 from app.routes.health import router as health_router
+from app.routes.knowledge import router as knowledge_router
 from app.routes.me import router as me_router
 from app.routes.platform import router as platform_router
 from app.routes.public import router as public_router
 from app.routes.tenants import router as tenants_router
 from app.security.jwt import TokenVerifier
 from app.services.domain_verification import DnsTxtVerifier
+from app.services.extraction import MAX_UPLOAD_BYTES
+from app.services.storage import SupabaseObjectStore
 from app.services.supabase_admin import SupabaseAuthAdmin
 
 settings = get_settings()
@@ -35,6 +39,11 @@ async def lifespan(app: FastAPI):
         else None
     )
     app.state.domain_verifier = DnsTxtVerifier(settings)
+    app.state.object_store = (
+        SupabaseObjectStore(settings)
+        if settings.supabase_url and settings.supabase_secret_key is not None
+        else None
+    )
     app.state.db = None
     if settings.database_url is not None:
         db = Database(settings)
@@ -64,10 +73,13 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "X-Request-ID"],
 )
+# Outermost: cap request bodies (10 MB upload + multipart overhead) before anything parses them.
+app.add_middleware(BodySizeLimitMiddleware, max_bytes=MAX_UPLOAD_BYTES + 256 * 1024)
 app.include_router(health_router)
 app.include_router(public_router, prefix="/api/v1")
 app.include_router(me_router, prefix="/api/v1")
 app.include_router(tenants_router, prefix="/api/v1")
 app.include_router(content_router, prefix="/api/v1")
 app.include_router(domains_router, prefix="/api/v1")
+app.include_router(knowledge_router, prefix="/api/v1")
 app.include_router(platform_router, prefix="/api/v1")

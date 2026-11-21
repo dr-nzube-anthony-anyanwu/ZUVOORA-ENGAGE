@@ -26,6 +26,7 @@ from app.config import Settings
 from app.db import Database
 from app.main import app
 from app.security.jwt import TokenVerifier
+from app.services.storage import SupabaseObjectStore
 from app.services.supabase_admin import SupabaseAuthAdmin
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -83,11 +84,13 @@ def client(stack):
     app.state.verifier = TokenVerifier(settings)
     app.state.auth_admin = SupabaseAuthAdmin(settings)
     app.state.db = db
+    app.state.object_store = SupabaseObjectStore(settings)
     try:
         yield TestClient(app)
     finally:
         db.close()
         app.state.verifier = app.state.auth_admin = app.state.db = None
+        app.state.object_store = None
 
 
 @dataclass

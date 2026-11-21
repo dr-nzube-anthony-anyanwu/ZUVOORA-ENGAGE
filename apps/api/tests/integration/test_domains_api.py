@@ -39,9 +39,9 @@ class FakeDns:
 
 
 @pytest.fixture
-def dns(client, monkeypatch):
+def dns(client, monkeypatch, app_state):
     fake = FakeDns()
-    monkeypatch.setattr(client.app.state, "domain_verifier", fake, raising=False)
+    app_state("domain_verifier", fake)
     monkeypatch.setattr(
         domains_module,
         "get_settings",

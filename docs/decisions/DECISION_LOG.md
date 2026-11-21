@@ -24,6 +24,7 @@
 | ADR-020 | Email from `engage.zuvoora.com` via Resend (EU); Supabase Auth uses a sending-only, domain-restricted key | Accepted (2026-11-21) |
 | ADR-021 | Clinic content uses draft/published JSON copies with database-enforced publication invariants | Accepted (Phase 2a, 2026-11-21) |
 | ADR-022 | Website ownership proven by DNS TXT record; one verified holder per hostname | Accepted (Phase 2b, 2026-11-21) |
+| ADR-023 | Knowledge uploads: content-sniffed, extracted in an isolated worker, originals in a policy-less private bucket, immutable reviewed versions | Accepted (Phase 2c, 2026-11-21) |
 
 ### ADR-011 — Next.js 16
 - **Context:** `eslint.config.mjs` used the Next 16 flat-config entry points, so lint failed on Next 15; Next 15 also pulled a high-severity `postcss` advisory (npm's only fix was Next 16.4.6); the webpack build failed on the exFAT SSD (`EISDIR readlink`).
@@ -83,3 +84,9 @@ Record context, alternatives, decision and consequences for every major architec
 - **Alternatives:** HTML meta tag or file upload checks (require the API to fetch arbitrary URLs: SSRF risk, redirects, hosting quirks); CNAME checks (conflict with existing records); manual approval by ZubeVision (does not scale, not proof of control).
 - **Decision:** TXT record at `_zuvoora-engage.<hostname>` containing a database-generated token; DNS lookup only, via `dnspython` (system resolvers, or `DNS_RESOLVERS`). Global uniqueness replaced by one active claim per tenant plus one verified holder per hostname.
 - **Consequences:** no outbound HTTP from user input; squatting is harmless; ownership changes require removal by the current holder (or support). Verification is not yet re-checked periodically; Phase 3 adds re-verification before the widget trusts a domain.
+
+### ADR-023 — Knowledge document pipeline
+- **Context:** clinics upload documents that the Phase 3 assistant will quote. Files are untrusted input (parser exploits, active content, zip bombs, prompt-injection text); nothing may become public without review.
+- **Alternatives:** (a) store bytes in Postgres (RLS-protected, but bloats the database and backups; Supabase free tier is 500 MB); (b) parse in the API process (a parser hang or memory blow-up takes the API down, and the parser could see environment secrets); (c) third-party document conversion services (sends clinic documents to another processor).
+- **Decision:** content-based type detection with extension agreement; text extraction with `pypdf` 7.1 and `python-docx` 1.2 in a separate `python -I` process with timeout, no environment and POSIX resource limits; reject active/embedded/encrypted content rather than sanitise it; store originals in a private Supabase Storage bucket with no RLS policies (backend secret key only), as octet-stream, at database-derived paths, written in the same transaction as the version row; immutable versions with a one-way review status and database-enforced publication of approved versions only.
+- **Consequences:** OCR is not supported (scanned PDFs are refused with a clear message). Malware scanning (e.g. ClamAV) is deferred to Phase 6, mitigated by rejecting active content, never serving originals, and isolating parsing. If a commit fails after the object upload, an orphan object can remain (no data exposure; cleanup job in Phase 6). Chunking/embeddings for retrieval come in Phase 3 from the approved text. A reverse proxy must enforce the same body limit in production. Dev dependency pytest raised to 9.0.3 (PYSEC-2026-1845); `pip-audit` reports no known vulnerabilities.

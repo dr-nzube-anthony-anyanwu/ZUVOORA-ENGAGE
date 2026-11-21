@@ -16,6 +16,7 @@ from app.db import Database
 from app.errors import ApiError, forbidden, log_security_event, not_found, request_id_of
 from app.security.jwt import Principal, TokenError, TokenVerifier
 from app.services.domain_verification import DomainVerifier
+from app.services.storage import ObjectStore
 from app.services.supabase_admin import SupabaseAuthAdmin
 
 ALL_ROLES = frozenset({"owner", "admin", "receptionist", "viewer"})
@@ -43,6 +44,13 @@ def get_domain_verifier(request: Request) -> DomainVerifier:
     if verifier is None:
         raise ApiError(503, "dns_unavailable", "Domain verification is not configured.")
     return verifier
+
+
+def get_object_store(request: Request) -> ObjectStore:
+    store: ObjectStore | None = getattr(request.app.state, "object_store", None)
+    if store is None:
+        raise ApiError(503, "storage_unavailable", "File storage is not configured.")
+    return store
 
 
 def get_principal(
