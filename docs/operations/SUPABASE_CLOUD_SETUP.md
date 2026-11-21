@@ -63,3 +63,14 @@ Fill these by hand from Settings → API Keys and Database → Connect (Session 
 - `apps/web/.env.local`: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
 
 The only value to share with Claude is the **project URL / ref** (not secret).
+
+## 8. Custom email (Resend) — done 2026-11-21 (ADR-020)
+- Resend domain `engage.zuvoora.com` (eu-west-1), DNS in Cloudflare under `zuvoora.com`:
+  `resend._domainkey.engage` TXT (DKIM), `send.engage` MX + TXT (SPF), `rsend.engage` CNAME
+  (DNS only, not proxied), `_dmarc.engage` TXT.
+- Supabase Auth SMTP: host `smtp.resend.com`, port 465, user `resend`, password = a Resend
+  **sending-only** key restricted to `engage.zuvoora.com`; sender `ZUVOORA Engage
+  <no-reply@engage.zuvoora.com>`; auth email rate limit 30/hour.
+- Applied with `supabase --workdir <temp copy> config push`, where the temp copy is
+  `config.toml` plus an `[auth.email.smtp]` block whose `pass = "env(ENGAGE_RESEND_SMTP_KEY)"`.
+  Never add that block to the repository `config.toml` (local would send real email).

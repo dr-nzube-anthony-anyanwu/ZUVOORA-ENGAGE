@@ -21,6 +21,7 @@
 | ADR-017 | Local-first Supabase (pinned CLI) for development and CI; migrations in `supabase/migrations` | Accepted (Phase 1, 2026-11-20) |
 | ADR-018 | Invitation-only accounts; platform admins provision clinics and require TOTP MFA (aal2) | Accepted (Phase 1, 2026-11-20) |
 | ADR-019 | Engage ports: API 8073, dashboard 3073 (avoid clashes with other local projects on 8000/3000) | Accepted (2026-11-21) |
+| ADR-020 | Email from `engage.zuvoora.com` via Resend (EU); Supabase Auth uses a sending-only, domain-restricted key | Accepted (2026-11-21) |
 
 ### ADR-011 — Next.js 16
 - **Context:** `eslint.config.mjs` used the Next 16 flat-config entry points, so lint failed on Next 15; Next 15 also pulled a high-severity `postcss` advisory (npm's only fix was Next 16.4.6); the webpack build failed on the exFAT SSD (`EISDIR readlink`).
@@ -62,3 +63,9 @@ Record context, alternatives, decision and consequences for every major architec
 - **Context:** clinic accounts carry patient-adjacent data; self-signup adds abuse surface before billing/onboarding exist.
 - **Decision:** public sign-up disabled. Platform admins (active `platform_admins` row **and** `aal2` session) create clinics and invite the owner; owners/admins invite staff. Passwords ≥ 12 chars with mixed case and digits. TOTP optional for clinic staff in Phase 1.
 - **Consequences:** self-serve onboarding is deferred to Phase 5 with billing. Requiring MFA for clinic owners should be revisited before pilot (Phase 6).
+
+### ADR-020 — Email sending domain and Supabase SMTP
+- **Context:** Supabase's built-in mailer blocks custom templates on the free tier and only delivers to the org's team addresses, so clinic invites could not work. Engage has no domain of its own; the founder owns `zuvoora.com` (DNS on Cloudflare).
+- **Alternatives:** `mail.zuvoora.com` (reputation shared with ZUVOORA core); buying a separate domain (cost, delay).
+- **Decision:** dedicated subdomain `engage.zuvoora.com` in Resend region eu-west-1 (matches Supabase region), with DKIM, SPF, return-path and DMARC (`p=none`, tighten to `quarantine` once delivery is clean). Supabase Auth SMTP uses its own Resend key with `sending_access` limited to that domain; the founder's full-access key is used only for setup. SMTP is applied to the cloud project from a temporary config copy so the local stack keeps using Mailpit.
+- **Consequences:** Engage's sender reputation is isolated from `zuvoora.com`. The full-access Resend key should be replaced in `.env` by a sending-only key before the backend sends email (Phase 4). To rotate the Supabase SMTP key, create a new restricted key and re-run the SMTP push (see `SUPABASE_CLOUD_SETUP.md`).
