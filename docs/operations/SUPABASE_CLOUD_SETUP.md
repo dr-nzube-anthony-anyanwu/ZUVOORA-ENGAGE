@@ -20,8 +20,12 @@ manager.
   - Redirect URLs: `http://localhost:3073/auth/confirm` (add the staging URL later).
 - Authentication → Email Templates → **Invite user**: paste the body of
   `supabase/templates/invite.html` (subject: "You have been invited to ZUVOORA Engage").
-- Note: the built-in email sender is heavily rate-limited. Production email moves to Resend
-  (custom SMTP) in Phase 4.
+- Note: the built-in email sender is heavily rate-limited, only delivers to your org's team
+  addresses, and on the free tier **custom templates are rejected** until custom SMTP is set
+  (Resend, Phase 4 or earlier). Until then the invite template step cannot be applied.
+- Automated alternative (used 2026-11-21): `npx supabase config push` applies the auth settings
+  from `supabase/config.toml` after showing a diff. Review it: never push values weaker than the
+  remote.
 
 ## 3. Apply the migration
 From the repository root (you will be prompted to log in to the Supabase CLI in your browser
