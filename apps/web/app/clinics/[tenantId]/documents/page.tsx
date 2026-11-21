@@ -52,8 +52,7 @@ export default async function DocumentsPage({ params, searchParams }: {
       {editable ? (
         <section className="panel">
           <h2>Upload a document</h2>
-          <ActionForm action={uploadDocument.bind(null, tenantId)} submitLabel="Upload"
-                      encType="multipart/form-data">
+          <ActionForm action={uploadDocument.bind(null, tenantId)} submitLabel="Upload">
             <Field label="Title">
               <input name="title" required minLength={2} maxLength={200} placeholder="e.g. Payment and HMO policy" />
             </Field>

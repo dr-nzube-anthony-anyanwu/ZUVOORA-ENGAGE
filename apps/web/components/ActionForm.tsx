@@ -12,19 +12,17 @@ type Props = {
   tone?: "primary" | "secondary" | "danger";
   /** Ask for confirmation before submitting (for destructive actions). */
   confirmText?: string;
-  encType?: "multipart/form-data";
 };
 
 /** A form bound to a Server Action, with pending state and the action's result message. */
 export function ActionForm({
-  action, submitLabel, children, className, tone = "primary", confirmText, encType,
+  action, submitLabel, children, className, tone = "primary", confirmText,
 }: Props) {
   const [state, formAction, pending] = useActionState(action, null);
   return (
     <form
       action={formAction}
       className={className ?? "form"}
-      encType={encType}
       onSubmit={(event) => {
         if (confirmText && !window.confirm(confirmText)) event.preventDefault();
       }}
@@ -49,6 +47,6 @@ export function ActionForm({
 }
 
 /** A one-button form for actions without fields (publish, archive, verify…). */
-export function ActionButton(props: Omit<Props, "children" | "className" | "encType">) {
+export function ActionButton(props: Omit<Props, "children" | "className">) {
   return <ActionForm {...props} className="inline-form" />;
 }

@@ -71,8 +71,7 @@ export default async function DocumentPage({ params }: {
             <section className="panel">
               <h2>Upload a new version</h2>
               <p className="hint">The live version stays live until you review and approve the new one.</p>
-              <ActionForm action={uploadVersion.bind(null, tenantId, doc.id)} submitLabel="Upload version"
-                          encType="multipart/form-data">
+              <ActionForm action={uploadVersion.bind(null, tenantId, doc.id)} submitLabel="Upload version">
                 <Field label="File" hint="PDF, Word (.docx), text or Markdown. Up to 10 MB.">
                   <input name="file" type="file" required accept={ACCEPT} />
                 </Field>

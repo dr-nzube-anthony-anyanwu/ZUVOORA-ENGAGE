@@ -34,6 +34,11 @@ test("anonymous visitors are sent to the login page", async ({ page }) => {
 
 test("owner configures and publishes clinic content", async ({ page }) => {
   const { ownerA, runId } = fx();
+  const consoleErrors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
+  page.on("pageerror", (error) => consoleErrors.push(error.message));
   const dialogs: string[] = [];
   page.on("dialog", async (dialog) => {
     dialogs.push(dialog.message());
@@ -135,6 +140,7 @@ test("owner configures and publishes clinic content", async ({ page }) => {
   await openSection(page, "Overview");
   await expect(page.getByRole("heading", { name: /Setup checklist · 5 of 6/ })).toBeVisible();
   expect(dialogs).toEqual([]);
+  expect(consoleErrors).toEqual([]);
 });
 
 test("another clinic cannot view or edit Clinic A", async ({ page }) => {
