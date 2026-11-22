@@ -12,6 +12,7 @@ import pytest
 # Tests never call a real model or spend credit: AI is forced off and the key removed before the
 # app (and its settings) load. AI tests inject a FakeGateway explicitly.
 os.environ["AI_ENABLED"] = "false"
+os.environ["AI_VISION_ENABLED"] = "false"
 os.environ["OPENROUTER_API_KEY"] = ""
 # A random per-run key for third-party credential encryption; never a real deployment key.
 os.environ["INTEGRATIONS_ENCRYPTION_KEY"] = base64.urlsafe_b64encode(os.urandom(32)).decode()

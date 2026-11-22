@@ -216,6 +216,18 @@ all members read, owners/admins (and MFA platform admins) write; no DELETE (arch
   `platform_overview()` returns rows only to an MFA platform admin and contains counts and amounts,
   never conversation or patient content.
 
+## Document reading by AI (Phase 3g, ADR-041)
+
+- Only owners/admins can upload (existing knowledge policies); patients cannot upload files.
+- `public.usage_events`: staff (`engage_app`) may insert only `feature = 'document'`, tier
+  `vision`, no conversation, for a clinic they own/administer (or as MFA platform admin); the widget
+  may insert only `chat` usage. A constraint ties `document` ⇔ `vision`.
+- `app_private.ai_spend_for(tenant)` returns AI spend (clinic today/month, platform today/month)
+  only to that clinic's owner/admin or an MFA platform admin — used for the budget check before
+  any vision call.
+- `knowledge_document_versions.extraction_method` (`text` | `vision`) is immutable like the rest
+  of a version; a photo (`detected_type = image`) must be `vision`.
+
 ## Adding a tenant-owned table (checklist)
 1. `tenant_id uuid not null references public.tenants(id)`.
 2. `enable` + `force row level security`.

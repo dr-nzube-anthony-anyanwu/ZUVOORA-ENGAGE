@@ -3,7 +3,7 @@ import { ActionForm } from "@/components/ActionForm";
 import { Badge, Field, formatDate } from "@/components/ui";
 import { reviewVersion } from "@/lib/actions";
 import { load, loadClinic, requireIds } from "@/lib/clinic";
-import { VERSION_STATE } from "@/lib/documents";
+import { AI_READ_NOTICE, VERSION_STATE } from "@/lib/documents";
 import { canEdit, type KnowledgeDocumentDetail, type KnowledgeVersionDetail } from "@/lib/types";
 
 export default async function VersionReviewPage({ params }: {
@@ -33,6 +33,9 @@ export default async function VersionReviewPage({ params }: {
           This is exactly the text the assistant will be able to quote once approved. Check that
           it is accurate, current and contains no patient information or medical advice.
         </p>
+        {version.extraction_method === "vision" && (
+          <p role="note" className="notice-inline"><Badge tone="warn">Read by AI</Badge> {AI_READ_NOTICE}</p>
+        )}
         <pre className="text-preview" tabIndex={0} aria-label="Extracted text">
           {version.extracted_text}
         </pre>

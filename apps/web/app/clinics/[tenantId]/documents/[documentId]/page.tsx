@@ -3,10 +3,10 @@ import { ActionButton, ActionForm } from "@/components/ActionForm";
 import { Badge, Field, ReadOnlyNotice, formatBytes, formatDate } from "@/components/ui";
 import { documentAction, renameDocument, uploadVersion } from "@/lib/actions";
 import { load, loadClinic, requireIds } from "@/lib/clinic";
-import { ACCEPT, DOC_STATE, VERSION_STATE } from "@/lib/documents";
+import { ACCEPT, DOC_STATE, FILE_HINT, VERSION_STATE } from "@/lib/documents";
 import { canEdit, type KnowledgeDocumentDetail } from "@/lib/types";
 
-const TYPE_LABEL = { pdf: "PDF", docx: "Word", text: "Text" } as const;
+const TYPE_LABEL = { pdf: "PDF", docx: "Word", text: "Text", image: "Photo" } as const;
 
 export default async function DocumentPage({ params }: {
   params: Promise<{ tenantId: string; documentId: string }>;
@@ -48,6 +48,7 @@ export default async function DocumentPage({ params }: {
                     {v.page_count ? ` · ${v.page_count} page(s)` : ""}
                     {v.text_length ? ` · ${v.text_length.toLocaleString("en-GB")} characters` : ""}
                   </div>
+                  {v.extraction_method === "vision" && <Badge tone="warn">Read by AI</Badge>}
                 </td>
                 <td>
                   <Badge tone={VERSION_STATE[v.status].tone}>{VERSION_STATE[v.status].label}</Badge>
@@ -72,7 +73,7 @@ export default async function DocumentPage({ params }: {
               <h2>Upload a new version</h2>
               <p className="hint">The live version stays live until you review and approve the new one.</p>
               <ActionForm action={uploadVersion.bind(null, tenantId, doc.id)} submitLabel="Upload version">
-                <Field label="File" hint="PDF, Word (.docx), text or Markdown. Up to 10 MB.">
+                <Field label="File" hint={FILE_HINT}>
                   <input name="file" type="file" required accept={ACCEPT} />
                 </Field>
               </ActionForm>

@@ -89,7 +89,8 @@ export type KnowledgeVersion = {
   status: "extracted" | "failed" | "approved" | "rejected";
   is_published: boolean;
   file_name: string;
-  detected_type: "pdf" | "docx" | "text";
+  detected_type: "pdf" | "docx" | "text" | "image";
+  extraction_method: "text" | "vision";
   size_bytes: number;
   sha256: string;
   page_count: number | null;

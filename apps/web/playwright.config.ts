@@ -46,6 +46,11 @@ export default defineConfig({
         // Scheduling against a local fake Cal.com; a random per-run credential encryption key.
         CALCOM_API_URL: "http://127.0.0.1:4181",
         INTEGRATIONS_ENCRYPTION_KEY: randomBytes(32).toString("base64url"),
+        // Document reading (photos/scans) against a local fake OpenRouter; chat AI stays off.
+        AI_ENABLED: "false",
+        AI_VISION_ENABLED: "true",
+        OPENROUTER_API_KEY: "e2e-openrouter-key",
+        OPENROUTER_BASE_URL: "http://127.0.0.1:4182",
       },
       url: "http://127.0.0.1:8073/health/ready",
       reuseExistingServer: false,
@@ -60,6 +65,12 @@ export default defineConfig({
     {
       command: "node e2e/calcom-fake.mjs",
       url: "http://127.0.0.1:4181/health",
+      reuseExistingServer: false,
+      timeout: 30_000,
+    },
+    {
+      command: "node e2e/openrouter-fake.mjs",
+      url: "http://127.0.0.1:4182/health",
       reuseExistingServer: false,
       timeout: 30_000,
     },

@@ -33,3 +33,20 @@ is tested. "API test" = `apps/api/tests/integration`, "DB test" = `supabase/test
   5 API bookings per day; Calendly has no booking metadata, so reconciliation matches type, time
   and email; rescheduling happens through Calendly's own link.
 - Changes made directly in the provider for bookings not made through Engage are ignored.
+
+## Document reading by AI (Phase 3g, ADR-041)
+
+Clinic staff only (patients cannot upload). Nothing is stored when a file is refused.
+
+| # | Failure | What the system does | Clinic sees | Proven by |
+|---|---|---|---|---|
+| D1 | AI reading switched off (`AI_VISION_ENABLED=false` or no key) | Photos refused before any work; scanned PDFs give the old "no text found" | "Photos and scanned documents are read by AI, which is not available…" | API test `test_without_ai_photos_are_refused_and_scans_say_no_text` |
+| D2 | Plan feature `document_reading` switched off for the clinic | Photos 403 `feature_not_in_plan`; scans "no text found"; no model call | Plan message | API test `test_feature_switched_off_refuses_photos` |
+| D3 | Clinic's daily or platform AI budget would be exceeded (worst case for all pages) | 409 `ai_budget_reached` before any call | "Today's AI budget … is used up" | API test `test_daily_budget_is_checked_before_any_call` |
+| D4 | Clinic's monthly plan AI allowance used up | 409 `quota_reached` before any call | Upgrade message | API test `test_monthly_plan_allowance_is_checked_before_any_call` |
+| D5 | Model timeout, provider error, no ZDR endpoint available | OpenRouter tries the backups; if a page still fails the upload is refused; worst-case cost of a timeout is recorded | "The AI could not read this file right now" | API test `test_model_failure_stores_nothing_but_records_billed_usage`; unit tests |
+| D6 | Image has no readable text | Model answers `NO_TEXT`; upload refused | "No text could be found" | API test `test_blank_photo_is_rejected_as_no_text` |
+| D7 | Hostile image (decompression bomb, corrupt file, disguised type, SVG) | Refused by type detection or the isolated worker's limits | Clear rejection message | Unit tests `test_vision.py` |
+| D8 | Scan longer than the page limit | Refused before rendering or any call | "Scanned documents can have at most 10 pages" | Unit test `test_long_scans_are_refused_before_rendering` |
+| D9 | AI misreads a number or word | Text is stored as "awaiting review" with a "Read by AI" warning; nothing reaches patients until a person approves it | Warning on the review page | Playwright `documents-vision.spec.ts` |
+| D10 | Instructions written inside an image (prompt injection) | Treated as text to transcribe; result still needs human approval and later passes the chat answer guard | The text, for review | Prompt rule; review flow; Phase 3f hostile evaluation of the answer path |

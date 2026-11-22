@@ -28,7 +28,7 @@ from app.routes.widget_admin import router as widget_admin_router
 from app.routes.widget_booking import router as widget_booking_router
 from app.routes.widget_public import router as widget_public_router
 from app.security.jwt import TokenVerifier
-from app.services.ai.factory import build_responder
+from app.services.ai.factory import build_budget, build_responder, build_vision_reader
 from app.services.domain_verification import DnsTxtVerifier
 from app.services.extraction import MAX_UPLOAD_BYTES
 from app.services.scheduling.calcom import DefaultProviderFactory
@@ -65,6 +65,8 @@ async def lifespan(app: FastAPI):
         else None
     )
     app.state.responder = build_responder(settings)
+    app.state.vision_reader = build_vision_reader(settings)  # None unless AI is enabled
+    app.state.ai_budget = build_budget(settings)
     app.state.secrets_box = (
         SecretsBox(
             settings.integrations_encryption_key.get_secret_value(),

@@ -17,5 +17,15 @@ export const VERSION_STATE: Record<KnowledgeVersion["status"], { label: string; 
 
 /** File picker filter (convenience only — the API checks the real file contents). */
 export const ACCEPT =
-  ".pdf,.docx,.txt,.md,application/pdf,text/plain,text/markdown," +
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  ".pdf,.docx,.txt,.md,.png,.jpg,.jpeg,.webp,application/pdf,text/plain,text/markdown," +
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document," +
+  "image/png,image/jpeg,image/webp";
+
+export const FILE_HINT =
+  "PDF, Word (.docx), text, Markdown, or a photo (.jpg, .png, .webp) of a price list, flyer or " +
+  "sign. Up to 10 MB. Photos and scanned PDFs (up to 10 pages) are read by AI — never upload " +
+  "anything containing patient information.";
+
+export const AI_READ_NOTICE =
+  "Read by AI from an image. AI can misread numbers and names — compare every line with the " +
+  "original before approving.";

@@ -49,7 +49,7 @@ class Usage:
 
     provider: Literal["openrouter", "fake"]
     model: str
-    tier: Literal["standard", "complex"]
+    tier: Literal["standard", "complex", "vision"]
     prompt_tokens: int
     completion_tokens: int
     cost_usd: Decimal

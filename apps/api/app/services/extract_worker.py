@@ -1,8 +1,14 @@
 """Isolated document text extractor (Phase 2c, ADR-023).
 
-Run ONLY as a child process: `python -I extract_worker.py <pdf|docx|text>` with the file on
-stdin. It prints exactly one JSON object on stdout and never raises: {"ok": true, "text": ...,
-"page_count": n} or {"ok": false, "error": "<code>"}.
+Run ONLY as a child process: `python -I extract_worker.py <pdf|docx|text|image> <vision_pages>`
+with the file on stdin. It prints exactly one JSON object on stdout and never raises:
+{"ok": true, "text": ..., "page_count": n}, {"ok": true, "images": [...], "page_count": n} or
+{"ok": false, "error": "<code>"}.
+
+Images (Phase 3g, ADR-041): photos and scanned PDF pages are decoded with Pillow / rendered with
+PDFium, size-limited and re-encoded as fresh JPEGs. Re-encoding drops EXIF/GPS and all other
+metadata; only pixels leave this process, for an AI model to read. `vision_pages` (0 = AI reading
+not allowed) caps how many pages may be returned as images.
 
 It imports nothing from the application, receives no environment variables (so no secrets), has
 no database access, and on POSIX applies memory/CPU/file limits to itself before parsing.
@@ -10,14 +16,21 @@ no database access, and on POSIX applies memory/CPU/file limits to itself before
 
 from __future__ import annotations
 
+import base64
 import io
 import json
 import re
 import sys
 import unicodedata
+import warnings
 import zipfile
 
 MAX_TEXT_CHARS = 300_000
+MAX_IMAGE_PIXELS = 40_000_000  # larger images are refused (decompression bombs)
+MAX_IMAGE_SIDE = 1600  # long side sent to the model, in pixels
+RENDER_DPI = 150
+JPEG_QUALITY = 85
+MIN_CHARS_PER_PAGE = 20  # less selectable text than this means the PDF is a scan
 MAX_PDF_PAGES = 300
 MAX_ZIP_ENTRIES = 1_000
 MAX_ZIP_UNCOMPRESSED = 50 * 1024 * 1024
@@ -176,15 +189,100 @@ def _text(data: bytes) -> tuple[str, int]:
 EXTRACTORS = {"pdf": _pdf, "docx": _docx, "text": _text}
 
 
-def main() -> None:
-    kind = sys.argv[1] if len(sys.argv) == 2 else ""
+# ----- images (photos and scanned pages) -----------------------------------------------------
+def _to_jpeg(image) -> str:
+    """Fresh JPEG of the pixels only (no EXIF/GPS/ICC/comments), long side ≤ MAX_IMAGE_SIDE."""
+    from PIL import Image, ImageOps
+
+    image = ImageOps.exif_transpose(image)  # apply camera rotation before the metadata is dropped
+    if image.mode in ("RGBA", "LA", "P"):
+        image = image.convert("RGBA")
+        background = Image.new("RGB", image.size, "white")
+        background.paste(image, mask=image.getchannel("A"))
+        image = background
+    elif image.mode != "RGB":
+        image = image.convert("RGB")
+    image.thumbnail((MAX_IMAGE_SIDE, MAX_IMAGE_SIDE))
+    clean = Image.new("RGB", image.size)
+    clean.paste(image)  # a new image carries no metadata from the original
+    buffer = io.BytesIO()
+    clean.save(buffer, "JPEG", quality=JPEG_QUALITY, optimize=True)
+    return base64.b64encode(buffer.getvalue()).decode("ascii")
+
+
+def _image(data: bytes) -> list[str]:
+    from PIL import Image
+
+    Image.MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
     try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(io.BytesIO(data), formats=["PNG", "JPEG", "WEBP"]) as probe:
+                probe.verify()  # structural check; the image must be reopened afterwards
+            with Image.open(io.BytesIO(data), formats=["PNG", "JPEG", "WEBP"]) as image:
+                if image.width * image.height > MAX_IMAGE_PIXELS:
+                    raise Rejected("too_complex")
+                image.seek(0)  # animated files: first frame only
+                image.load()
+                return [_to_jpeg(image)]
+    except Rejected:
+        raise
+    except (Image.DecompressionBombError, Image.DecompressionBombWarning) as exc:
+        raise Rejected("too_complex") from exc
+    except Exception as exc:  # noqa: BLE001 - any decoder failure is a malformed file
+        raise Rejected("malformed") from exc
+
+
+def _render_pdf(data: bytes, page_count: int, max_pages: int) -> list[str]:
+    if page_count > max_pages:
+        raise Rejected("scan_too_long")
+    import pypdfium2 as pdfium
+
+    try:
+        document = pdfium.PdfDocument(data)
+        images = []
+        for index in range(len(document)):
+            page = document[index]
+            width, height = page.get_size()  # points (1/72 inch)
+            scale = min(RENDER_DPI / 72, MAX_IMAGE_SIDE / max(width, height, 1))
+            if width * scale * height * scale > MAX_IMAGE_PIXELS:
+                raise Rejected("too_complex")
+            images.append(_to_jpeg(page.render(scale=scale).to_pil()))
+        return images
+    except Rejected:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise Rejected("malformed") from exc
+
+
+def _is_scan(text: str, pages: int) -> bool:
+    return len(text) < MIN_CHARS_PER_PAGE * max(pages, 1)
+
+
+def main() -> None:
+    kind = sys.argv[1] if len(sys.argv) == 3 else ""
+    try:
+        vision_pages = int(sys.argv[2]) if len(sys.argv) == 3 else 0
         _limit_resources()
+        data = sys.stdin.buffer.read()
+        if kind == "image":
+            if vision_pages < 1:
+                raise Rejected("vision_unavailable")
+            result = {"ok": True, "images": _image(data), "page_count": 1}
+            sys.stdout.write(json.dumps(result))
+            sys.stdout.flush()
+            return
         extractor = EXTRACTORS.get(kind)
         if extractor is None:
             raise Rejected("extractor_failed")
-        raw, pages = extractor(sys.stdin.buffer.read())
+        raw, pages = extractor(data)
         text = _clean(raw)
+        if kind == "pdf" and vision_pages > 0 and _is_scan(text, pages):
+            result = {"ok": True, "images": _render_pdf(data, pages, vision_pages),
+                      "page_count": pages}
+            sys.stdout.write(json.dumps(result))
+            sys.stdout.flush()
+            return
         if not text:
             raise Rejected("no_text")
         if len(text) > MAX_TEXT_CHARS:

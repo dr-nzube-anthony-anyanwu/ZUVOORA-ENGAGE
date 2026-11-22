@@ -1,23 +1,28 @@
 """Knowledge document routes (Phase 2c): upload, screen, extract, review, publish, version.
 
 Flow for every upload: authorise (owner/admin) -> screen type from content -> extract text in
-an isolated worker -> in ONE transaction insert the version (database-generated storage path)
-and store the original privately -> commit. Rejected files are never stored (the rejection is
-audited). Nothing is public until an owner/admin approves a version, which publishes it.
+an isolated worker (photos and scanned PDFs: page images read by an AI model after plan, quota
+and budget checks — Phase 3g, ADR-041) -> in ONE transaction insert the version
+(database-generated storage path) and store the original privately -> commit. Rejected files
+are never stored (the rejection is audited). Nothing is public until an owner/admin approves a
+version, which publishes it.
 """
 
 from __future__ import annotations
 
 import hashlib
+import logging
 import uuid
 from collections import defaultdict
 from datetime import datetime
+from decimal import Decimal
 from typing import Any, Literal
 
 import psycopg
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile, status
 from pydantic import BaseModel, Field
 
+from app.config import get_settings
 from app.content_schemas import Line, Text, _single
 from app.db import Database
 from app.deps import (
@@ -33,6 +38,8 @@ from app.errors import ApiError, forbidden, not_found
 from app.schemas import StrictModel
 from app.security.jwt import Principal
 from app.services import entitlements
+from app.services.ai.answerer import Budget, over_budget
+from app.services.ai.vision import VisionReader
 from app.services.answering.chunking import chunk_text
 from app.services.extraction import (
     MAX_UPLOAD_BYTES,
@@ -45,12 +52,13 @@ from app.services.extraction import (
 from app.services.storage import ObjectStore, StorageError
 
 router = APIRouter(prefix="/tenants/{tenant_id}/knowledge", tags=["knowledge"])
+log = logging.getLogger("engage.knowledge")
 
 MAX_DOCUMENTS = 100
 MAX_VERSIONS = 50
 
 _VERSION_COLUMNS = """id, document_id, version_no, status::text as status, file_name, detected_type,
-    size_bytes, sha256, page_count, uploaded_at, reviewed_at, review_note,
+    extraction_method, size_bytes, sha256, page_count, uploaded_at, reviewed_at, review_note,
     char_length(extracted_text) as text_length"""
 _DOC_COLUMNS = "id, title, published_version_id, archived_at, created_at, updated_at"
 
@@ -62,7 +70,8 @@ class VersionOut(BaseModel):
     status: Literal["extracted", "failed", "approved", "rejected"]
     is_published: bool
     file_name: str
-    detected_type: Literal["pdf", "docx", "text"]
+    detected_type: Literal["pdf", "docx", "text", "image"]
+    extraction_method: Literal["text", "vision"]  # "vision": read by AI from an image
     size_bytes: int
     sha256: str
     page_count: int | None
@@ -183,6 +192,88 @@ def _clean_title(title: str) -> str:
     return value
 
 
+def _vision_pages(
+    request: Request, db: Database, principal: Principal, tenant_id: uuid.UUID, detected: str
+) -> int:
+    """How many pages may be read by AI: 0 unless AI is configured and the plan includes it."""
+    if detected not in ("image", "pdf"):
+        return 0
+    reader = getattr(request.app.state, "vision_reader", None)
+    with tenant_transaction(request, db, principal, tenant_id, MANAGER_ROLES) as (conn, _):
+        if detected == "image":  # photos can only be read by AI
+            entitlements.require(conn, tenant_id, "document_reading")
+            allowed = True
+        else:  # scanned PDFs fall back to "no text found" when AI reading is not available
+            allowed = entitlements.load(conn, tenant_id).has("document_reading")
+    if reader is None:
+        if detected == "image":
+            raise UploadRejected("vision_unavailable")
+        return 0
+    return get_settings().ai_vision_max_pages if allowed else 0
+
+
+def _read_with_ai(
+    request: Request,
+    db: Database,
+    principal: Principal,
+    tenant_id: uuid.UUID,
+    extraction: Extraction,
+) -> Extraction:
+    """Plan, quota and budget checks first; the model call runs with no transaction open; every
+    call's usage is recorded (also when it failed)."""
+    reader: VisionReader = request.app.state.vision_reader
+    budget: Budget = request.app.state.ai_budget
+    worst = reader.worst_case(len(extraction.images))
+    with tenant_transaction(request, db, principal, tenant_id, MANAGER_ROLES) as (conn, _):
+        ents = entitlements.require(conn, tenant_id, "document_reading")
+        spent = conn.execute(
+            "select tenant_today, global_today, global_month, tenant_month "
+            "from app_private.ai_spend_for(%s)",
+            (tenant_id,),
+        ).fetchone()
+    monthly = ents.limit("ai_usd_month")
+    if monthly is not None and float(spent["tenant_month"]) >= monthly:
+        raise ApiError(
+            409,
+            "quota_reached",
+            f"This month's AI allowance in the {ents.plan_name} plan is used up. Upload a document "
+            "with selectable text, or contact ZUVOORA to upgrade.",
+        )
+    exceeded = over_budget(
+        budget,
+        (Decimal(spent["tenant_today"]), Decimal(spent["global_today"]),
+         Decimal(spent["global_month"])),
+        worst,
+    )
+    if exceeded:
+        log.warning("vision_budget_exhausted scope=%s tenant=%s", exceeded, tenant_id)
+        raise ApiError(
+            409,
+            "ai_budget_reached",
+            "Today's AI budget for reading documents is used up. Try again tomorrow, or upload a "
+            "document with selectable text.",
+        )
+
+    result = reader.read(extraction.images)
+    if result.usage:
+        with tenant_transaction(request, db, principal, tenant_id, MANAGER_ROLES) as (conn, _):
+            for usage in result.usage:
+                conn.execute(
+                    "insert into public.usage_events (tenant_id, feature, provider, model, tier, "
+                    "prompt_tokens, completion_tokens, cost_usd) "
+                    "values (%s, 'document', %s, %s, 'vision', %s, %s, %s)",
+                    (tenant_id, usage.provider, usage.model, usage.prompt_tokens,
+                     usage.completion_tokens, usage.cost_usd),
+                )
+    if result.error:
+        raise UploadRejected("vision_failed")
+    if not result.text:
+        raise UploadRejected("no_text")
+    return Extraction(
+        extraction.detected_type, result.text, extraction.page_count, method="vision"
+    )
+
+
 def _screen(
     request: Request,
     db: Database,
@@ -191,9 +282,14 @@ def _screen(
     file_name: str,
     data: bytes,
 ) -> Extraction:
-    """Detect type and extract text; on rejection, audit it and return a 422."""
+    """Detect type and extract text (by AI for photos/scans); on rejection, audit it and 422."""
     try:
-        return extract(detect_type(file_name, data), data)
+        detected = detect_type(file_name, data)
+        pages = _vision_pages(request, db, principal, tenant_id, detected)
+        extraction = extract(detected, data, pages)
+        if extraction.images:
+            extraction = _read_with_ai(request, db, principal, tenant_id, extraction)
+        return extraction
     except UploadRejected as rejected:
         with tenant_transaction(request, db, principal, tenant_id, MANAGER_ROLES) as (conn, _):
             record_audit(
@@ -220,15 +316,16 @@ def _store_version(
     try:
         row = conn.execute(
             """insert into public.knowledge_document_versions
-                 (tenant_id, document_id, status, file_name, detected_type, size_bytes, sha256,
-                  page_count, extracted_text)
-               values (%s, %s, 'extracted', %s, %s, %s, %s, %s, %s)
+                 (tenant_id, document_id, status, file_name, detected_type, extraction_method,
+                  size_bytes, sha256, page_count, extracted_text)
+               values (%s, %s, 'extracted', %s, %s, %s, %s, %s, %s, %s)
                returning id, version_no, storage_path""",
             (
                 tenant_id,
                 document_id,
                 file_name,
                 extraction.detected_type,
+                extraction.method,
                 len(data),
                 hashlib.sha256(data).hexdigest(),
                 extraction.page_count or None,
@@ -314,6 +411,7 @@ def upload_document(
             metadata={
                 "version_no": version["version_no"],
                 "detected_type": extraction.detected_type,
+                "extraction_method": extraction.method,
                 "size_bytes": len(data),
             },
         )
@@ -380,6 +478,7 @@ def upload_version(
             metadata={
                 "version_no": version["version_no"],
                 "detected_type": extraction.detected_type,
+                "extraction_method": extraction.method,
                 "size_bytes": len(data),
             },
         )

@@ -56,6 +56,16 @@ class Settings(BaseSettings):
     # Worst-case provider price, USD per million tokens; also sent as OpenRouter `max_price`.
     ai_max_prompt_usd_per_mtok: Decimal = Decimal("0.50")
     ai_max_completion_usd_per_mtok: Decimal = Decimal("1.00")
+    # AI reading of photos/scanned PDFs uploaded by clinic staff (Phase 3g, ADR-041). Its own
+    # switch (off by default); the same key, price ceiling and budgets as chat answers.
+    # ZDR providers checked 2026-11-22.
+    ai_vision_enabled: bool = False
+    ai_vision_models: str = (
+        "google/gemma-4-26b-a4b-it,mistralai/mistral-small-3.2-24b-instruct,openai/gpt-6-luna"
+    )
+    ai_vision_max_pages: int = Field(default=10, ge=1, le=20)
+    ai_vision_max_output_tokens: int = Field(default=1500, ge=200, le=4000)
+    ai_vision_timeout_seconds: float = Field(default=40.0, ge=5, le=120)
     resend_api_key: SecretStr | None = None
     email_from: str | None = None
     # Transactional email (Phase 4a, ADR-033). "log" never sends (default outside production);
@@ -92,7 +102,12 @@ class Settings(BaseSettings):
     def strip_trailing_slash(cls, value: str | None) -> str | None:
         return value.rstrip("/") if value else value
 
-    @field_validator("ai_standard_models", "ai_complex_models")
+    @field_validator("openrouter_api_key")
+    @classmethod
+    def blank_key_is_no_key(cls, value: SecretStr | None) -> SecretStr | None:
+        return value if value is not None and value.get_secret_value().strip() else None
+
+    @field_validator("ai_standard_models", "ai_complex_models", "ai_vision_models")
     @classmethod
     def pinned_model_list(cls, value: str) -> str:
         models = [x.strip() for x in value.split(",") if x.strip()]
@@ -105,9 +120,13 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def ai_settings_are_consistent(self) -> "Settings":
-        if self.ai_enabled and self.openrouter_api_key is None:
-            raise ValueError("AI_ENABLED requires OPENROUTER_API_KEY")
-        if self.ai_enabled and not self.openrouter_base_url.startswith("https://"):
+        uses_ai = self.ai_enabled or self.ai_vision_enabled
+        if uses_ai and self.openrouter_api_key is None:
+            raise ValueError("AI_ENABLED / AI_VISION_ENABLED require OPENROUTER_API_KEY")
+        local_fake = self.app_env in {"development", "test"} and (
+            self.openrouter_base_url.startswith(("http://127.0.0.1:", "http://localhost:"))
+        )
+        if uses_ai and not (self.openrouter_base_url.startswith("https://") or local_fake):
             raise ValueError("OPENROUTER_BASE_URL must use https")
         budgets = (
             self.ai_budget_tenant_daily_usd,

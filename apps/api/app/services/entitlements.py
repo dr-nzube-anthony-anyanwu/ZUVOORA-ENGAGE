@@ -19,6 +19,7 @@ FEATURE_NAMES = {
     "booking": "Online booking",
     "reminders": "Appointment reminders",
     "ai_answers": "AI answers",
+    "document_reading": "Reading photos and scanned documents",
     "analytics_basic": "Analytics",
     "analytics_full": "Full analytics",
     "chat_widget": "The website chat",

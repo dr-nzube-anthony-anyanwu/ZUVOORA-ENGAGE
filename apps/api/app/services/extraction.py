@@ -20,16 +20,22 @@ MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 EXTRACTION_TIMEOUT_SECONDS = 30
 WORKER = Path(__file__).with_name("extract_worker.py")
 
-DetectedType = Literal["pdf", "docx", "text"]
+DetectedType = Literal["pdf", "docx", "text", "image"]
 _EXTENSIONS: dict[DetectedType, tuple[str, ...]] = {
     "pdf": (".pdf",),
     "docx": (".docx",),
     "text": (".txt", ".md", ".markdown"),
+    "image": (".png", ".jpg", ".jpeg", ".webp"),
 }
 
 MESSAGES = {
-    "unsupported_type": "Only PDF, Word (.docx), plain text (.txt) and Markdown (.md) files "
-                        "can be uploaded.",
+    "unsupported_type": "Only PDF, Word (.docx), plain text (.txt), Markdown (.md) and image "
+                        "(.png, .jpg, .webp) files can be uploaded.",
+    "vision_unavailable": "Photos and scanned documents are read by AI, which is not available "
+                          "for this clinic right now. Upload a document with selectable text.",
+    "scan_too_long": "Scanned documents can have at most {pages} pages. Split the document into "
+                     "smaller files.",
+    "vision_failed": "The AI could not read this file right now. Please try again later.",
     "type_mismatch": "The file's contents do not match its extension.",
     "empty": "The file is empty.",
     "too_large": "Files can be at most 10 MB.",
@@ -50,17 +56,21 @@ MESSAGES = {
 
 
 class UploadRejected(Exception):
-    def __init__(self, code: str) -> None:
+    def __init__(self, code: str, **details: object) -> None:
         super().__init__(code)
         self.code = code
-        self.message = MESSAGES.get(code, MESSAGES["extractor_failed"])
+        self.message = MESSAGES.get(code, MESSAGES["extractor_failed"]).format(**details)
 
 
 @dataclass(frozen=True)
 class Extraction:
+    """Text from the file, or page images (JPEG, base64) that an AI model must read first."""
+
     detected_type: DetectedType
     text: str
     page_count: int
+    images: tuple[str, ...] = ()
+    method: Literal["text", "vision"] = "text"
 
 
 def safe_file_name(name: str | None) -> str:
@@ -81,6 +91,9 @@ def detect_type(file_name: str, data: bytes) -> DetectedType:
         detected: DetectedType = "pdf"
     elif data.startswith(b"PK\x03\x04"):
         detected = "docx"  # the worker confirms the Word structure
+    elif (data.startswith((b"\x89PNG\r\n\x1a\n", b"\xff\xd8\xff"))
+          or (data[:4] == b"RIFF" and data[8:12] == b"WEBP")):
+        detected = "image"  # the worker decodes it with an allow-list of formats
     elif lower.endswith(_EXTENSIONS["text"]):
         detected = "text"  # the worker requires valid UTF-8 without NUL bytes
     else:
@@ -98,10 +111,12 @@ def _worker_env() -> dict[str, str]:
     return {k: os.environ[k] for k in keep if k in os.environ}
 
 
-def extract(detected_type: DetectedType, data: bytes) -> Extraction:
+def extract(detected_type: DetectedType, data: bytes, vision_pages: int = 0) -> Extraction:
+    """Run the isolated worker. `vision_pages` > 0 allows photos and scanned PDFs (up to that many
+    pages) to come back as images for AI reading; 0 keeps the text-only behaviour."""
     try:
         completed = subprocess.run(  # noqa: S603 - fixed argv, no shell, isolated interpreter
-            [sys.executable, "-I", str(WORKER), detected_type],
+            [sys.executable, "-I", str(WORKER), detected_type, str(max(vision_pages, 0))],
             input=data,
             capture_output=True,
             timeout=EXTRACTION_TIMEOUT_SECONDS,
@@ -117,5 +132,11 @@ def extract(detected_type: DetectedType, data: bytes) -> Extraction:
         code = "too_complex" if completed.returncode < 0 else "extractor_failed"
         raise UploadRejected(code) from exc
     if not result.get("ok"):
-        raise UploadRejected(str(result.get("error", "extractor_failed")))
-    return Extraction(detected_type, result["text"], int(result.get("page_count") or 0))
+        raise UploadRejected(str(result.get("error", "extractor_failed")), pages=vision_pages)
+    page_count = int(result.get("page_count") or 0)
+    if "images" in result:
+        images = tuple(str(i) for i in result["images"])
+        if not images:
+            raise UploadRejected("no_text")
+        return Extraction(detected_type, "", page_count, images=images, method="vision")
+    return Extraction(detected_type, result["text"], page_count)

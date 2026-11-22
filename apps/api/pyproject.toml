@@ -19,7 +19,9 @@ dependencies = [
   "dnspython>=2.7,<3.0",
   "python-multipart>=0.0.20,<0.1",
   "pypdf>=7.1,<8.0",
-  "python-docx>=1.2,<2.0"
+  "python-docx>=1.2,<2.0",
+  "pillow>=13.0,<14.0",
+  "pypdfium2>=5.14,<5.15"
 ]
 
 [project.optional-dependencies]
@@ -72,6 +74,8 @@ extend-immutable-calls = ["fastapi.Depends", "fastapi.File", "fastapi.Form", "fa
 "tests/integration/test_usage_api.py" = ["S101", "S105", "S106", "F811", "E501"]
 "tests/integration/test_analytics_api.py" = ["S101", "S105", "S106", "F811", "E501"]
 "tests/integration/test_plan_acceptance.py" = ["S101", "S105", "S106", "F811", "E501"]
+"tests/integration/test_document_vision_api.py" = ["S101", "S105", "S106", "F811", "E501"]
+"tests/test_vision.py" = ["S101", "E501"]
 "tests/integration/test_booking_api.py" = ["S101", "S105", "S106", "F811", "E501"]
 "tests/integration/test_lifecycle_api.py" = ["S101", "S105", "S106", "F811", "E501"]
 # Evaluation data table: one case per line is easier to review.

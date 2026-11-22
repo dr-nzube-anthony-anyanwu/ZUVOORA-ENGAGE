@@ -19,14 +19,26 @@ from typing import Literal, Protocol
 
 import httpx
 
-Tier = Literal["standard", "complex"]
+Tier = Literal["standard", "complex", "vision"]
 MILLION = Decimal(1_000_000)
+# Budgeting estimate per attached image (≤ 1600 px long side). Deliberately high: vision models
+# bill roughly 250-1,500 tokens for such an image.
+IMAGE_TOKEN_ESTIMATE = 3_000
 
 
 @dataclass(frozen=True)
 class ChatMessage:
     role: Literal["system", "user", "assistant"]
     content: str
+    images: tuple[str, ...] = ()  # base64 JPEGs (user messages only), sent as data URLs
+
+    def payload(self) -> dict:
+        if not self.images:
+            return {"role": self.role, "content": self.content}
+        parts: list[dict] = [{"type": "text", "text": self.content}]
+        parts += [{"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image}"}}
+                  for image in self.images]
+        return {"role": self.role, "content": parts}
 
 
 @dataclass(frozen=True)
@@ -59,7 +71,8 @@ class PriceCeiling:
 
 def estimate_prompt_tokens(messages: tuple[ChatMessage, ...]) -> int:
     """Deliberately high (≈3 characters per token) so budget checks err on the safe side."""
-    return sum(len(m.content) for m in messages) // 3 + 8 * len(messages)
+    text = sum(len(m.content) for m in messages) // 3 + 8 * len(messages)
+    return text + IMAGE_TOKEN_ESTIMATE * sum(len(m.images) for m in messages)
 
 
 class ModelError(Exception):
@@ -100,9 +113,9 @@ class OpenRouterGateway:
     def body(self, request: ModelRequest) -> dict:
         return {
             "models": list(request.models),
-            "messages": [{"role": m.role, "content": m.content} for m in request.messages],
+            "messages": [m.payload() for m in request.messages],
             "max_tokens": request.max_output_tokens,
-            "temperature": 0.2,
+            "temperature": 0 if request.tier == "vision" else 0.2,
             "reasoning": {"enabled": False},
             "usage": {"include": True},
             "provider": {

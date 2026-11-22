@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ActionForm } from "@/components/ActionForm";
 import { Badge, Field, ReadOnlyNotice, formatDate } from "@/components/ui";
 import { uploadDocument } from "@/lib/actions";
-import { ACCEPT, DOC_STATE } from "@/lib/documents";
+import { ACCEPT, DOC_STATE, FILE_HINT } from "@/lib/documents";
 import { loadClinic, loadWithQuery } from "@/lib/clinic";
 import { canEdit, type KnowledgeDocument } from "@/lib/types";
 
@@ -23,8 +23,8 @@ export default async function DocumentsPage({ params, searchParams }: {
     <>
       <h1>Documents</h1>
       <p>
-        Upload policies, price lists or patient information. We extract the text; an owner or admin
-        must read and approve it before the assistant can use it.
+        Upload policies, price lists or information leaflets for patients. We extract the text; an
+        owner or admin must read and approve it before the assistant can use it.
       </p>
       <section className="panel">
         {documents.length === 0 ? <p>No documents yet.</p> : (
@@ -56,7 +56,7 @@ export default async function DocumentsPage({ params, searchParams }: {
             <Field label="Title">
               <input name="title" required minLength={2} maxLength={200} placeholder="e.g. Payment and HMO policy" />
             </Field>
-            <Field label="File" hint="PDF, Word (.docx), text or Markdown. Up to 10 MB. Scanned images and password-protected files are not supported.">
+            <Field label="File" hint={`${FILE_HINT} Password-protected files are not supported.`}>
               <input name="file" type="file" required accept={ACCEPT} />
             </Field>
           </ActionForm>
