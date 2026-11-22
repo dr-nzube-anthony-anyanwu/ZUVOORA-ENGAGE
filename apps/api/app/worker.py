@@ -174,7 +174,25 @@ def booking_cancelled(conn: psycopg.Connection, job: dict, settings: Settings) -
     )
 
 
+def quota_alert(conn: psycopg.Connection, job: dict, settings: Settings) -> Email | Skip:
+    row = conn.execute(
+        "select clinic, plan_name from app_private.job_quota_alert(%s)", (job["tenant_id"],)
+    ).fetchone()
+    if row is None:
+        return Skip("clinic inactive or subscription cancelled")
+    to = _recipients(conn, job["tenant_id"], ["owner", "admin"])
+    if not to:
+        return Skip("no recipients")
+    payload = job["payload"]
+    return email_templates.quota_alert(
+        to, row["clinic"], row["plan_name"], str(payload.get("metric")),
+        int(payload.get("threshold", 0)), str(payload.get("period")),
+        f"{settings.dashboard_url}/clinics/{job['tenant_id']}/plan",
+    )
+
+
 HANDLERS: dict[str, Handler] = {
+    "quota_alert": quota_alert,
     "handover_alert": handover_alert,
     "domain_lapsed": domain_lapsed,
     "booking_confirmation": booking_confirmation,

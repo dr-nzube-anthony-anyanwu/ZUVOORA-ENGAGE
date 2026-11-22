@@ -133,6 +133,8 @@ def _type_and_provider(
 ) -> tuple[dict, SchedulingProvider]:
     if not entitlements.widget_has(conn, "booking"):  # server-side plan check (Phase 5)
         raise ApiError(403, "booking_unavailable", UNAVAILABLE)
+    if entitlements.widget_quota_reached(conn, "bookings"):  # monthly allowance used
+        raise ApiError(409, "quota_reached", UNAVAILABLE)
     row = conn.execute(
         "select t.id, t.name, t.duration_minutes, t.provider_event_type_id, t.connection_id, "
         "c.provider from public.appointment_types t "
@@ -206,7 +208,9 @@ def booking_options(
     with db.widget_transaction(ctx.tenant_id, ctx.conversation_id) as conn:
         _hit(conn, tokens, request, "booking_ip", _client_ip(request))
         _open_conversation(conn)
-        if not entitlements.widget_has(conn, "booking"):
+        if not entitlements.widget_has(conn, "booking") or entitlements.widget_quota_reached(
+            conn, "bookings"
+        ):
             return OptionsOut(available=False, types=[])
         rows = conn.execute(
             "select id, name, duration_minutes, requires_confirmation "

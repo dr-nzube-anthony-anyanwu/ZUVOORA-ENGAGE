@@ -17,6 +17,7 @@ from app.routes.knowledge import router as knowledge_router
 from app.routes.me import router as me_router
 from app.routes.plans import clinic_router as plans_clinic_router
 from app.routes.plans import platform_router as plans_platform_router
+from app.routes.plans import usage_router
 from app.routes.platform import router as platform_router
 from app.routes.scheduling import router as scheduling_router
 from app.routes.tenants import router as tenants_router
@@ -119,4 +120,5 @@ app.include_router(widget_booking_router)
 app.include_router(widget_public_router)
 app.include_router(platform_router, prefix="/api/v1")
 app.include_router(plans_clinic_router, prefix="/api/v1")
+app.include_router(usage_router, prefix="/api/v1")
 app.include_router(plans_platform_router, prefix="/api/v1")

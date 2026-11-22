@@ -198,7 +198,12 @@ def frame_config(
     with db.widget_transaction(clinic["tenant_id"]) as conn:
         booking = conn.execute(
             "select exists (select 1 from public.appointment_types) as ok"
-        ).fetchone()["ok"] and entitlements.widget_has(conn, "booking")
+        ).fetchone()["ok"]
+        booking = (
+            booking
+            and entitlements.widget_has(conn, "booking")
+            and not entitlements.widget_quota_reached(conn, "bookings")
+        )
     return FrameConfigOut(
         ticket=tokens.issue_ticket(body.key, host),
         clinic=clinic["display_name"],

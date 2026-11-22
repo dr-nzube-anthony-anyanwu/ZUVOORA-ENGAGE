@@ -181,3 +181,44 @@ def booking_cancelled(
         text="\n\n".join([*lines, PATIENT_FOOTER]),
         html=_patient_html(lines),
     )
+
+
+QUOTA_EFFECT = {
+    "messages": "AI answers pause until next month; the assistant keeps giving answers from your "
+    "published information, emergency guidance and call-back requests.",
+    "ai_usd": "AI answers pause until next month; the assistant keeps giving answers from your "
+    "published information, emergency guidance and call-back requests.",
+    "bookings": "New online bookings pause until next month; existing bookings, their emails and "
+    "call-back requests continue.",
+    "emails": "Emails keep being sent; ZUVOORA may contact you about your plan.",
+}
+QUOTA_LABEL = {
+    "messages": "chat messages",
+    "ai_usd": "AI allowance",
+    "bookings": "online bookings",
+    "emails": "emails",
+}
+
+
+def quota_alert(
+    to: tuple[str, ...],
+    clinic: str,
+    plan: str,
+    metric: str,
+    threshold: int,
+    period: str,
+    plan_url: str,
+) -> Email:
+    label = QUOTA_LABEL.get(metric, metric)
+    lines = [
+        f"{clinic} has used {threshold}% of this month's {label} ({period}) on the {plan} plan."
+    ]
+    if threshold >= 100:
+        lines.append(QUOTA_EFFECT.get(metric, ""))
+    lines.append("Contact ZUVOORA if you need a higher limit.")
+    return Email(
+        to=to,
+        subject=f"{clinic}: {threshold}% of monthly {label} used",
+        text="\n\n".join([*lines, f"Plan & usage: {plan_url}", FOOTER]),
+        html=_html(lines, ("Open Plan & usage", plan_url)),
+    )

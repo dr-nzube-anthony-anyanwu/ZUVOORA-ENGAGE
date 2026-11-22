@@ -97,3 +97,12 @@ def widget_has(conn: psycopg.Connection, feature: str) -> bool:
     return bool(
         conn.execute("select app_private.widget_has_feature(%s) as ok", (feature,)).fetchone()["ok"]
     )
+
+
+def widget_quota_reached(conn: psycopg.Connection, metric: str) -> bool:
+    """For widget-role transactions: has the clinic used its monthly allowance of `metric`?"""
+    return bool(
+        conn.execute(
+            "select app_private.widget_quota_reached(%s) as reached", (metric,)
+        ).fetchone()["reached"]
+    )

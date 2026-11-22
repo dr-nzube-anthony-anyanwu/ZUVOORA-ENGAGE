@@ -43,7 +43,11 @@ test("platform admin changes a clinic's plan and the clinic sees it", async ({ p
   await expect(page.getByRole("heading", { name: "Essentials" })).toBeVisible();
   await expect(page.getByRole("row", { name: /Online booking/ })).toContainText("Included");
   await expect(page.getByRole("row", { name: /Appointment reminders/ })).toContainText("Not in this plan");
-  await expect(page.getByRole("row", { name: /Website domains/ })).toContainText("1");
+  await expect(page.getByRole("row", { name: /Website domains/ }).last()).toContainText("1");
+  // Phase 5b: this month's usage against the plan's limits.
+  const thisMonth = page.getByRole("region", { name: /This month/ });
+  await expect(thisMonth.getByRole("row", { name: /Chat messages/ })).toContainText("of 2,000");
+  await expect(thisMonth.getByRole("row", { name: /Bookings/ })).toContainText("of 100");
   await page.context().clearCookies();
 
   // Clinic A's owner (Full ZUVOORA) sees unbuilt features as "not yet available".

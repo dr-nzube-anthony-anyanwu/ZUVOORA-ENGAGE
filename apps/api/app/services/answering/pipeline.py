@@ -70,7 +70,15 @@ class FactsFirstResponder:
             return Answer(text=best_faq.text, source="facts", safety={"faq": best_faq.title})
 
         # Nothing retrieved -> nothing to ground on. The plan must include AI answers (Phase 5).
-        if self._ai is not None and passages and entitlements.widget_has(conn, "ai_answers"):
+        # Over the monthly message or AI allowance: no model (the free answers and the honest
+        # fallback still work — "soft for safety, hard for cost", ADR-039).
+        if (
+            self._ai is not None
+            and passages
+            and entitlements.widget_has(conn, "ai_answers")
+            and not entitlements.widget_quota_reached(conn, "messages")
+            and not entitlements.widget_quota_reached(conn, "ai_usd")
+        ):
             return self._ai.prepare(
                 conn,
                 context,

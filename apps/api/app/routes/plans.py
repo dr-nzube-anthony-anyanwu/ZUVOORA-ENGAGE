@@ -386,3 +386,80 @@ def delete_override(
             target_id=tenant_id,
             metadata={"kind": kind, "key": key},
         )
+
+
+# ----- usage (Phase 5b) --------------------------------------------------------------------------
+usage_router = APIRouter(prefix="/tenants/{tenant_id}/usage", tags=["plans"])
+
+METERED = {  # metric -> (plan limit key, label)
+    "messages": ("messages_month", "Chat messages"),
+    "ai_usd": ("ai_usd_month", "AI spend (USD)"),
+    "emails": ("emails_month", "Emails"),
+    "bookings": ("bookings_month", "Bookings"),
+}
+COUNTED = {  # current count query -> (plan limit key, label)
+    "documents": (
+        "select count(*) from public.knowledge_documents where tenant_id = %s "
+        "and archived_at is null",
+        "Knowledge documents",
+    ),
+    "staff_seats": (
+        "select count(*) from public.tenant_memberships where tenant_id = %s and is_active",
+        "Staff accounts",
+    ),
+    "domains": (
+        "select count(*) from public.tenant_domains where tenant_id = %s and removed_at is null",
+        "Website domains",
+    ),
+    "branches": (
+        "select count(*) from public.branches where tenant_id = %s and archived_at is null",
+        "Branches",
+    ),
+}
+
+
+class UsageItem(BaseModel):
+    key: str
+    label: str
+    used: float
+    limit: float | None
+
+
+class UsageOut(BaseModel):
+    period: str
+    monthly: list[UsageItem]
+    totals: list[UsageItem]
+    ai_tokens: float
+
+
+@usage_router.get("", response_model=UsageOut)
+def clinic_usage(
+    tenant_id: uuid.UUID,
+    request: Request,
+    principal: Principal = Depends(get_principal),
+    db: Database = Depends(get_db),
+) -> UsageOut:
+    with tenant_transaction(request, db, principal, tenant_id, MANAGER_ROLES) as (conn, _):
+        ents = entitlements.load(conn, tenant_id)
+        used = {
+            r["metric"]: float(r["quantity"])
+            for r in conn.execute(
+                "select metric, quantity from app_private.tenant_usage(%s)", (tenant_id,)
+            ).fetchall()
+        }
+        period = conn.execute(
+            "select to_char(date_trunc('month', now() at time zone 'UTC'), 'YYYY-MM') as p"
+        ).fetchone()["p"]
+        totals = []
+        for key, (query, label) in COUNTED.items():
+            count = conn.execute(query, (tenant_id,)).fetchone()["count"]
+            totals.append(UsageItem(key=key, label=label, used=count, limit=ents.limit(key)))
+    return UsageOut(
+        period=period,
+        monthly=[
+            UsageItem(key=m, label=label, used=used.get(m, 0.0), limit=ents.limit(limit_key))
+            for m, (limit_key, label) in METERED.items()
+        ],
+        totals=totals,
+        ai_tokens=used.get("ai_tokens", 0.0),
+    )

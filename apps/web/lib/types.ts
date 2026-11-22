@@ -304,6 +304,9 @@ export type Subscription = {
   notes: string | null;
 };
 
+export type UsageItem = { key: string; label: string; used: number; limit: number | null };
+export type Usage = { period: string; monthly: UsageItem[]; totals: UsageItem[]; ai_tokens: number };
+
 export const LIMIT_LABELS: Record<string, string> = {
   messages_month: "Chat messages per month",
   ai_usd_month: "AI spend per month (USD)",
