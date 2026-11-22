@@ -99,9 +99,21 @@ class FakeProvider:
                 return Booking(b.uid, b.status, b.start, b.start + timedelta(minutes=45))
         return None
 
+    def create_webhook(self, url: str, triggers: tuple[str, ...], secret: str) -> str:
+        self._check("create_webhook")
+        self.world.webhooks.append((url, triggers, secret))
+        return f"wh{len(self.world.webhooks)}"
+
+    def delete_webhook(self, webhook_id: str) -> None:
+        self._check("delete_webhook")
+        self.world.deleted_webhooks.append(webhook_id)
+
     def cancel(self, provider_booking_id: str, reason: str | None) -> None:
         self._check("cancel")
         self.world.cancelled.append(provider_booking_id)
+        for booking in self.world.bookings:
+            if booking.uid == provider_booking_id:
+                booking.status = "cancelled"
 
     def reschedule(self, provider_booking_id: str, start: datetime) -> Booking:
         self._check("reschedule")
@@ -124,6 +136,8 @@ class FakeWorld:
         self.slot_starts = [tomorrow + timedelta(hours=h) for h in (8, 9, 10, 11)]
         self.bookings: list[FakeBooking] = []
         self.cancelled: list[str] = []
+        self.webhooks: list[tuple[str, tuple[str, ...], str]] = []
+        self.deleted_webhooks: list[str] = []
         self.credentials_seen: list[str] = []
 
     def __call__(self, provider: str, credential: str) -> FakeProvider:

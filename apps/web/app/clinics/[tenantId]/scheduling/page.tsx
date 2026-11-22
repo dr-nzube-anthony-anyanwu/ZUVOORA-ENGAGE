@@ -1,7 +1,9 @@
 import { ActionButton, ActionForm } from "@/components/ActionForm";
 import { Badge, Field, ReadOnlyNotice, formatDate } from "@/components/ui";
 import { ApiRequestError, apiGet, tenantPath } from "@/lib/api";
-import { connectScheduling, disconnectScheduling, saveAppointmentTypes } from "@/lib/actions";
+import {
+  connectScheduling, disconnectScheduling, saveAppointmentTypes, setReminder2h, setupBookingUpdates,
+} from "@/lib/actions";
 import { load, loadClinic } from "@/lib/clinic";
 import { canEdit, type ProviderEventType, type SchedulingSettings } from "@/lib/types";
 
@@ -67,6 +69,32 @@ export default async function SchedulingPage({ params }: { params: Promise<{ ten
           </ActionForm>
         ) : <ReadOnlyNotice />}
       </section>
+
+      {connection && (
+        <section className="panel">
+          <div className="row-between">
+            <h2>Booking updates and reminders</h2>
+            {connection.webhook_configured_at ? <Badge tone="good">On</Badge> : <Badge tone="warn">Not set up</Badge>}
+          </div>
+          <p>
+            Cal.com tells ZUVOORA Engage when a booking is cancelled or moved in Cal.com, so patients
+            never get a reminder for an appointment that changed. Patients get a reminder 24 hours
+            before{connection.reminder_2h ? " and 2 hours before" : ""}.
+          </p>
+          {editable ? (
+            <div className="button-row">
+              <ActionButton action={setupBookingUpdates.bind(null, tenantId)}
+                submitLabel={connection.webhook_configured_at ? "Replace webhook secret" : "Set up booking updates"}
+                tone={connection.webhook_configured_at ? "secondary" : "primary"}
+                confirmText={connection.webhook_configured_at
+                  ? "Create a new webhook secret? Update it in Cal.com if you added the webhook by hand." : undefined} />
+              <ActionButton action={setReminder2h.bind(null, tenantId, !connection.reminder_2h)}
+                submitLabel={connection.reminder_2h ? "Turn off 2-hour reminders" : "Also remind 2 hours before"}
+                tone="secondary" />
+            </div>
+          ) : <ReadOnlyNotice />}
+        </section>
+      )}
 
       {connection && (
         <section className="panel">

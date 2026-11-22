@@ -13,7 +13,13 @@ database settings plus the email settings:
 | `EMAIL_ALLOWED_RECIPIENTS` | Outside production, the only addresses/`@domains` that receive real email. Empty = none. |
 | `WORKER_POLL_SECONDS` | Idle polling interval (default 5). |
 
-Current emails: **call-back request** alert to the clinic's owners, admins and receptionists
+Booking emails (Phase 4c–4d): patient **confirmation**, clinic **new booking** alert (no patient
+details), **reminders** 24 hours before (and 2 hours before if the clinic turns it on),
+**cancellation** notice; **reconciliation** of bookings whose provider response was lost. A
+cancelled, rejected or moved appointment has its queued emails skipped immediately, and the
+worker re-checks status and time before any reminder.
+
+Other emails: **call-back request** alert to the clinic's owners, admins and receptionists
 (no patient details — a link to the inbox), and **website chat stopped** alert to owners/admins
 when a domain lapses. Failed sends retry with backoff for up to 23 hours, then become `dead`
 (visible to operators in `app_private.jobs`).

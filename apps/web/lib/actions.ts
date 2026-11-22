@@ -560,3 +560,56 @@ export async function saveAppointmentTypes(
   refresh(tenantId);
   return { ok: "Appointment types saved." };
 }
+
+// ----- booking lifecycle (Phase 4d) -------------------------------------------------------------
+type WebhookSetup = { mode: "automatic" | "manual"; subscriber_url: string; triggers: string[]; secret: string | null };
+
+export async function setupBookingUpdates(tenantId: string, _prev: ActionState): Promise<ActionState> {
+  let result: WebhookSetup;
+  try {
+    ids(tenantId);
+    result = await apiFetch<WebhookSetup>(tenantPath(tenantId, "scheduling", "webhook"), { method: "POST" });
+  } catch (error) {
+    return failure(error);
+  }
+  refresh(tenantId);
+  if (result.mode === "automatic") {
+    return { ok: "Booking updates are connected: Cal.com will tell us about cancellations and reschedules." };
+  }
+  // Manual mode: shown once, for the owner to paste into Cal.com (Settings → Developer → Webhooks).
+  return {
+    ok: "Add this webhook in Cal.com (Settings → Developer → Webhooks). The secret is shown only now.",
+    details: [
+      `Subscriber URL: ${result.subscriber_url}`,
+      `Secret: ${result.secret}`,
+      `Events: ${result.triggers.join(", ")}`,
+    ],
+  };
+}
+
+export async function setReminder2h(
+  tenantId: string, enabled: boolean, _prev: ActionState,
+): Promise<ActionState> {
+  try {
+    ids(tenantId);
+    if (typeof enabled !== "boolean") throw new InvalidInput("invalid choice");
+    await apiFetch(tenantPath(tenantId, "scheduling"), { method: "PATCH", json: { reminder_2h: enabled } });
+  } catch (error) {
+    return failure(error);
+  }
+  refresh(tenantId);
+  return { ok: enabled ? "Patients also get a reminder 2 hours before." : "2-hour reminders are off." };
+}
+
+export async function cancelAppointment(
+  tenantId: string, appointmentId: string, _prev: ActionState,
+): Promise<ActionState> {
+  try {
+    ids(tenantId, appointmentId);
+    await apiFetch(tenantPath(tenantId, "appointments", appointmentId, "cancel"), { method: "POST" });
+  } catch (error) {
+    return failure(error);
+  }
+  refresh(tenantId);
+  return { ok: "Appointment cancelled. The patient is emailed." };
+}

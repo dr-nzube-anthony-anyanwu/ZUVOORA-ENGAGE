@@ -78,6 +78,9 @@ class Settings(BaseSettings):
     integrations_encryption_key: SecretStr | None = None
     integrations_encryption_key_previous: SecretStr | None = None
     calcom_api_url: str = "https://api.cal.com"
+    # Public https base URL of this API (for provider webhooks). Unset or http: webhooks must be
+    # added in the provider by hand (local development cannot receive provider webhooks).
+    public_api_url: str | None = None
 
     # Domain verification (DNS TXT). Empty = the operating system's resolvers.
     dns_resolvers: str = ""
@@ -167,8 +170,13 @@ class Settings(BaseSettings):
         if self.app_env in {"staging", "production"}:
             missing = [
                 name
-                for name in ("supabase_url", "supabase_secret_key", "database_url",
-                         "widget_token_secret", "integrations_encryption_key")
+                for name in (
+                    "supabase_url",
+                    "supabase_secret_key",
+                    "database_url",
+                    "widget_token_secret",
+                    "integrations_encryption_key",
+                )
                 if getattr(self, name) is None
             ]
             if missing:

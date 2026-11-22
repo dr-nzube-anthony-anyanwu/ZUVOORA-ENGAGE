@@ -135,3 +135,49 @@ def booking_alert(
         text="\n\n".join([*lines, f"Open the conversation: {conversation_url}", FOOTER]),
         html=_html(lines, ("Open the conversation", conversation_url)),
     )
+
+
+def booking_reminder(
+    to: str,
+    name: str,
+    clinic: str,
+    type_name: str,
+    start: datetime,
+    attendee_zone: str,
+    clinic_phone: str | None,
+) -> Email:
+    when = _local(start, attendee_zone)
+    lines = [
+        f"Hello {name}, this is a reminder of your {type_name} at {clinic} on {when}.",
+        f"If you cannot attend, please contact {clinic}"
+        + (f" on {clinic_phone}." if clinic_phone else "."),
+    ]
+    return Email(
+        to=(to,),
+        subject=f"Reminder: your appointment at {clinic}",
+        text="\n\n".join([*lines, PATIENT_FOOTER]),
+        html=_patient_html(lines),
+    )
+
+
+def booking_cancelled(
+    to: str,
+    name: str,
+    clinic: str,
+    type_name: str,
+    start: datetime,
+    attendee_zone: str,
+    clinic_phone: str | None,
+) -> Email:
+    when = _local(start, attendee_zone)
+    lines = [
+        f"Hello {name}, your {type_name} at {clinic} on {when} has been cancelled.",
+        f"To book another time, use the chat on the clinic's website or contact {clinic}"
+        + (f" on {clinic_phone}." if clinic_phone else "."),
+    ]
+    return Email(
+        to=(to,),
+        subject=f"Your appointment at {clinic} was cancelled",
+        text="\n\n".join([*lines, PATIENT_FOOTER]),
+        html=_patient_html(lines),
+    )

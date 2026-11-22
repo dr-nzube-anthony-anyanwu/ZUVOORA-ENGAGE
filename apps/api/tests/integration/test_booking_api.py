@@ -97,7 +97,11 @@ def test_confirmed_booking_is_recorded_announced_and_emailed(client, world, chat
     sent = provider.bookings[-1]
     row = appointment(admin_db, sent.reference)  # the provider reference IS our appointment id
     assert (row[1], row[2]) == ("confirmed", sent.uid)
-    assert jobs(admin_db, row[0]) == {"booking_confirmation", "booking_alert"}
+    # Phase 4d: a 24-hour reminder too, when the appointment is far enough away.
+    expected = {"booking_confirmation", "booking_alert"}
+    if start - timedelta(hours=24) > datetime.now(UTC) + timedelta(minutes=15):
+        expected.add("booking_reminder")
+    assert jobs(admin_db, row[0]) == expected
 
     sender = FakeSender()
     drain(client, sender, provider)

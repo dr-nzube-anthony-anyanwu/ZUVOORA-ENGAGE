@@ -212,6 +212,28 @@ export type SchedulingConnection = {
   connected_at: string;
   last_verified_at: string | null;
   last_error: string | null;
+  webhook_configured_at: string | null;
+  provider_webhook_id: string | null;
+  reminder_2h: boolean;
+};
+
+export type AppointmentStatus =
+  "booking" | "confirmed" | "pending" | "unknown" | "failed" | "cancelled" | "rescheduled";
+
+export type Appointment = {
+  id: string;
+  type_name: string;
+  status: AppointmentStatus;
+  start_at: string;
+  end_at: string | null;
+  attendee_name: string;
+  attendee_email: string;
+  attendee_phone: string | null;
+  attendee_time_zone: string;
+  conversation_id: string | null;
+  rescheduled_to: string | null;
+  failure_reason: string | null;
+  created_at: string;
 };
 
 export type AppointmentType = {

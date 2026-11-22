@@ -207,6 +207,27 @@ class CalcomProvider:
         )
         return self._booking(data)
 
+    def create_webhook(self, url: str, triggers: tuple[str, ...], secret: str) -> str:
+        data = self._request(
+            "POST",
+            "/v2/webhooks",
+            None,
+            json={
+                "active": True,
+                "subscriberUrl": url,
+                "triggers": list(triggers),
+                "secret": secret,
+                "version": "2021-10-20",
+            },
+        )
+        try:
+            return _uid(str(data["id"]))
+        except (KeyError, TypeError) as exc:
+            raise ProviderUnavailable("malformed_response") from exc
+
+    def delete_webhook(self, webhook_id: str) -> None:
+        self._request("DELETE", f"/v2/webhooks/{_uid(webhook_id)}", None)
+
     def find_booking(
         self, reference: str, event_type_id: str, start: datetime, attendee_email: str
     ) -> Booking | None:

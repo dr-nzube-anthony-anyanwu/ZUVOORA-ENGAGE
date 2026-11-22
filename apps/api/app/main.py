@@ -8,6 +8,7 @@ from app import errors
 from app.config import get_settings
 from app.db import Database
 from app.middleware import BodySizeLimitMiddleware
+from app.routes.appointments import router as appointments_router
 from app.routes.content import router as content_router
 from app.routes.domains import router as domains_router
 from app.routes.health import router as health_router
@@ -17,6 +18,7 @@ from app.routes.me import router as me_router
 from app.routes.platform import router as platform_router
 from app.routes.scheduling import router as scheduling_router
 from app.routes.tenants import router as tenants_router
+from app.routes.webhooks import router as webhooks_router
 from app.routes.widget_admin import router as widget_admin_router
 from app.routes.widget_booking import router as widget_booking_router
 from app.routes.widget_public import router as widget_public_router
@@ -109,6 +111,8 @@ app.include_router(knowledge_router, prefix="/api/v1")
 app.include_router(widget_admin_router, prefix="/api/v1")
 app.include_router(inbox_router, prefix="/api/v1")
 app.include_router(scheduling_router, prefix="/api/v1")
+app.include_router(appointments_router, prefix="/api/v1")
+app.include_router(webhooks_router)
 app.include_router(widget_booking_router)
 app.include_router(widget_public_router)
 app.include_router(platform_router, prefix="/api/v1")

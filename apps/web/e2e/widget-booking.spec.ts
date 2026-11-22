@@ -56,6 +56,26 @@ test("a patient books an appointment from the website chat", async ({ page }) =>
   await expect(chat2.locator(".times .choice")).toHaveCount(5);  // 6 offered, 1 booked
   await next.close();
 
+  // Phase 4d: booking updates (manual set-up shows the webhook URL and secret once).
+  await page.goto(`/clinics/${tenantA}/scheduling`);
+  await page.getByRole("button", { name: "Set up booking updates" }).click();
+  await expect(page.locator(".ok-details")).toContainText("/api/v1/webhooks/calcom/");
+  await expect(page.locator(".ok-details")).toContainText("Secret: ");
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Replace webhook secret" })).toBeVisible();
+  await expect(page.locator("body")).not.toContainText("Secret: ");  // never shown again
+
+  // The clinic sees the booking and cancels it (Cal.com first, then here).
+  await page.goto(`/clinics/${tenantA}/appointments`);
+  const row = page.getByRole("row").filter({ hasText: "E2E Patient" });
+  await expect(row).toContainText("Confirmed");
+  await expect(row).toContainText("e2e.patient@example.com");
+  page.once("dialog", (dialog) => dialog.accept());
+  await row.getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByText("No appointments here.")).toBeVisible();
+  await page.goto(`/clinics/${tenantA}/appointments?view=past`);
+  await expect(page.getByRole("row").filter({ hasText: "E2E Patient" })).toContainText("Cancelled");
+
   // Clean up: disconnect so other tests start without booking.
   await page.goto(`/clinics/${tenantA}/scheduling`);
   page.once("dialog", (dialog) => dialog.accept());

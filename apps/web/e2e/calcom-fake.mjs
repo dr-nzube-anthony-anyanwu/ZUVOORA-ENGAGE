@@ -51,14 +51,27 @@ createServer((req, res) => {
       const start = new Date(body.start).toISOString();
       if (booked.has(start)) return send(res, 400, { status: "error", error: { message: "Slot taken" } });
       booked.add(start);
+      const uid = `e2e${booked.size}${Date.now()}`;
+      uids.set(start, uid);
       const end = new Date(new Date(start).getTime() + 30 * 60_000).toISOString();
       return send(res, 201, { status: "success", data: {
-        uid: `e2e${booked.size}`, status: "accepted", start, end, metadata: body.metadata ?? {} } });
+        uid, status: "accepted", start, end, metadata: body.metadata ?? {} } });
     });
     return undefined;
   }
+  const cancel = /^\/v2\/bookings\/([A-Za-z0-9_-]+)\/cancel$/.exec(url.pathname);
+  if (req.method === "POST" && cancel) {
+    if (req.headers["cal-api-version"] !== "2026-02-25") return send(res, 400, { status: "error" });
+    const entry = [...uids].find(([, uid]) => uid === cancel[1]);
+    if (!entry) return send(res, 404, { status: "error" });
+    booked.delete(entry[0]);
+    uids.delete(entry[0]);
+    return send(res, 200, { status: "success", data: { uid: cancel[1], status: "cancelled" } });
+  }
   return send(res, 404, { status: "error" });
 }).listen(port, "127.0.0.1");
+
+const uids = new Map();
 
 const booked = new Set();
 

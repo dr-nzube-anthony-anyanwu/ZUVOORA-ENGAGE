@@ -34,6 +34,9 @@ export function ActionForm({
         </button>
         {state?.ok && !pending && <span role="status" className="ok">{state.ok}</span>}
       </div>
+      {state?.ok && !pending && state.details && state.details.length > 0 && (
+        <ul className="ok-details mono">{state.details.map((d) => <li key={d}>{d}</li>)}</ul>
+      )}
       {state?.error && !pending && (
         <div role="alert" className="error">
           {state.error}

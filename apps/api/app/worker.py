@@ -19,6 +19,7 @@ import uuid
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 import psycopg
 
@@ -131,11 +132,55 @@ def booking_alert(conn: psycopg.Connection, job: dict, settings: Settings) -> Em
     )
 
 
+def booking_reminder(conn: psycopg.Connection, job: dict, settings: Settings) -> Email | Skip:
+    row = _booking(conn, job)
+    if row is None:
+        return Skip("clinic inactive or booking removed")
+    if row["status"] != "confirmed":
+        return Skip(f"booking is {row['status']}")
+    # The reminder is for the time it was scheduled for; a moved booking has its own reminders.
+    if (
+        row["start_at"].isoformat()
+        != datetime.fromisoformat(job["payload"]["start_at"]).isoformat()
+    ):
+        return Skip("appointment time changed")
+    if row["start_at"] <= datetime.now(UTC):
+        return Skip("appointment already started")
+    return email_templates.booking_reminder(
+        row["attendee_email"],
+        row["attendee_name"],
+        row["clinic"],
+        row["type_name"],
+        row["start_at"],
+        row["attendee_time_zone"],
+        row["clinic_phone"],
+    )
+
+
+def booking_cancelled(conn: psycopg.Connection, job: dict, settings: Settings) -> Email | Skip:
+    row = _booking(conn, job)
+    if row is None:
+        return Skip("clinic inactive or booking removed")
+    if row["status"] != "cancelled":
+        return Skip(f"booking is {row['status']}")
+    return email_templates.booking_cancelled(
+        row["attendee_email"],
+        row["attendee_name"],
+        row["clinic"],
+        row["type_name"],
+        row["start_at"],
+        row["attendee_time_zone"],
+        row["clinic_phone"],
+    )
+
+
 HANDLERS: dict[str, Handler] = {
     "handover_alert": handover_alert,
     "domain_lapsed": domain_lapsed,
     "booking_confirmation": booking_confirmation,
     "booking_alert": booking_alert,
+    "booking_reminder": booking_reminder,
+    "booking_cancelled": booking_cancelled,
 }
 
 # Reconciliation attempts after an unknown booking outcome: 1 min, +2 min, +7 min.

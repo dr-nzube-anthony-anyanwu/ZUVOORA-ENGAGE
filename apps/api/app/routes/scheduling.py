@@ -8,6 +8,7 @@ calls happen with no database transaction open.
 from __future__ import annotations
 
 import re
+import secrets
 import uuid
 from datetime import datetime
 from typing import Literal
@@ -16,6 +17,7 @@ import psycopg
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field, SecretStr, field_validator
 
+from app.config import get_settings
 from app.content_schemas import Line
 from app.db import Database
 from app.deps import (
@@ -29,6 +31,7 @@ from app.deps import (
 from app.errors import ApiError, not_found
 from app.schemas import StrictModel
 from app.security.jwt import Principal
+from app.services.scheduling import webhooks
 from app.services.scheduling.base import (
     CredentialRejected,
     EventType,
@@ -115,6 +118,9 @@ class ConnectionOut(BaseModel):
     connected_at: datetime
     last_verified_at: datetime | None
     last_error: str | None
+    webhook_configured_at: datetime | None = None
+    provider_webhook_id: str | None = None
+    reminder_2h: bool = False
 
 
 class AppointmentTypeOut(BaseModel):
@@ -166,7 +172,8 @@ class OffersIn(StrictModel):
 
 # ----- helpers -----------------------------------------------------------------------------------
 _CONNECTION_COLUMNS = """id, provider, status, account_label, account_time_zone, credential_hint,
-    connected_at, last_verified_at, last_error"""
+    connected_at, last_verified_at, last_error, webhook_configured_at, provider_webhook_id,
+    reminder_2h"""
 
 
 def _live_connection(conn: psycopg.Connection, tenant_id: uuid.UUID) -> dict | None:
@@ -430,5 +437,115 @@ def set_appointment_types(
             target_type="scheduling_connection",
             target_id=connection_id,
             metadata={"offered": [i.provider_event_type_id for i in body.items if i.enabled]},
+        )
+        return _load(conn, tenant_id)
+
+
+# ----- Phase 4d: booking updates (webhook) and reminder settings --------------------------------
+WEBHOOK_PURPOSE = "calcom_webhook"
+
+
+class WebhookOut(BaseModel):
+    mode: Literal["automatic", "manual"]
+    subscriber_url: str
+    triggers: list[str]
+    # Only in manual mode, shown once so the owner can paste it into Cal.com.
+    secret: str | None = None
+
+
+class SettingsIn(StrictModel):
+    reminder_2h: bool
+
+
+def _subscriber_url(connection_id: uuid.UUID) -> str:
+    base = (get_settings().public_api_url or "").rstrip("/") or "http://127.0.0.1:8073"
+    return f"{base}/api/v1/webhooks/calcom/{connection_id}"
+
+
+@router.post("/webhook", response_model=WebhookOut)
+def configure_webhook(
+    tenant_id: uuid.UUID,
+    request: Request,
+    principal: Principal = Depends(get_principal),
+    db: Database = Depends(get_db),
+    box: SecretsBox = Depends(get_secrets_box),
+    factory: ProviderFactory = Depends(get_provider_factory),
+) -> WebhookOut:
+    """Create (or rotate) the connection's webhook secret and register it with the provider.
+
+    With a public https API URL the webhook is created in Cal.com automatically; otherwise the
+    owner adds it by hand with the URL and secret returned once.
+    """
+    with tenant_transaction(request, db, principal, tenant_id, MANAGER_ROLES) as (conn, _):
+        connection = _live_connection(conn, tenant_id)
+        if connection is None:
+            raise ApiError(409, "not_connected", "No scheduling account is connected.")
+        provider = open_connection(conn, box, factory, connection["id"])
+    connection_id = connection["id"]
+    url = _subscriber_url(connection_id)
+    secret = secrets.token_urlsafe(32)
+    automatic = url.startswith("https://")
+    provider_webhook_id: str | None = None
+    if automatic:  # provider calls with no transaction open
+        try:
+            if connection["provider_webhook_id"]:
+                try:
+                    provider.delete_webhook(connection["provider_webhook_id"])
+                except ProviderRejected:
+                    pass  # already removed in Cal.com
+            provider_webhook_id = provider.create_webhook(url, webhooks.TRIGGERS, secret)
+        except SchedulingError as exc:
+            raise provider_error(exc) from exc
+    sealed = box.seal(secret, purpose=WEBHOOK_PURPOSE, tenant_id=tenant_id, record_id=connection_id)
+    with tenant_transaction(request, db, principal, tenant_id, MANAGER_ROLES) as (conn, _):
+        conn.execute(
+            "update public.scheduling_connections set webhook_secret_ciphertext = %s, "
+            "webhook_key_id = %s, provider_webhook_id = %s where id = %s and tenant_id = %s",
+            (sealed.ciphertext, sealed.key_id, provider_webhook_id, connection_id, tenant_id),
+        )
+        record_audit(
+            conn,
+            request,
+            principal,
+            "scheduling.webhook_configured",
+            tenant_id=tenant_id,
+            target_type="scheduling_connection",
+            target_id=connection_id,
+            metadata={"mode": "automatic" if automatic else "manual"},
+        )
+    return WebhookOut(
+        mode="automatic" if automatic else "manual",
+        subscriber_url=url,
+        triggers=list(webhooks.TRIGGERS),
+        secret=None if automatic else secret,
+    )
+
+
+@router.patch("", response_model=SchedulingOut)
+def update_settings(
+    tenant_id: uuid.UUID,
+    body: SettingsIn,
+    request: Request,
+    principal: Principal = Depends(get_principal),
+    db: Database = Depends(get_db),
+) -> SchedulingOut:
+    with tenant_transaction(request, db, principal, tenant_id, MANAGER_ROLES) as (conn, _):
+        connection = _live_connection(conn, tenant_id)
+        if connection is None:
+            raise ApiError(409, "not_connected", "No scheduling account is connected.")
+        conn.execute(
+            "update public.scheduling_connections set reminder_2h = %s where id = %s "
+            "and tenant_id = %s",
+            (body.reminder_2h, connection["id"], tenant_id),
+        )
+        record_audit(
+            conn,
+            request,
+            principal,
+            "scheduling.settings_updated",
+            tenant_id=tenant_id,
+            target_type="scheduling_connection",
+            target_id=connection["id"],
+            metadata={"reminder_2h": body.reminder_2h},
         )
         return _load(conn, tenant_id)

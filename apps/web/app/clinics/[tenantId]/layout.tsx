@@ -49,6 +49,7 @@ export default async function ClinicLayout({
               )}
             </Link>
           )}
+          {inbox && <Link href={`/clinics/${tenantId}/appointments`}>Appointments</Link>}
           {NAV.map((item) => (
             <Link key={item.href} href={`/clinics/${tenantId}${item.href}`}>{item.label}</Link>
           ))}
