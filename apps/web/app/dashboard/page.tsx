@@ -51,7 +51,7 @@ export default async function DashboardPage() {
       {me.is_platform_admin && (
         <section className="panel">
           <span className="status">Platform administrator</span>
-          <p>Platform tools (clinic provisioning and suspension) are available through the API in Phase 1.</p>
+          <p><Link href="/platform">Open platform tools</Link>: clinics, plans and the plan catalogue.</p>
         </section>
       )}
 

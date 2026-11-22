@@ -13,6 +13,7 @@ from datetime import UTC, datetime
 
 import psycopg
 
+from app.services import entitlements
 from app.services.ai.answerer import AiAnswerer, ClinicContext
 from app.services.answering import facts as facts_mod
 from app.services.answering import retrieval, safety
@@ -68,7 +69,8 @@ class FactsFirstResponder:
         if best_faq and best_faq.coverage >= FAQ_MIN_COVERAGE and passages[0] is best_faq:
             return Answer(text=best_faq.text, source="facts", safety={"faq": best_faq.title})
 
-        if self._ai is not None and passages:  # nothing retrieved -> nothing to ground on
+        # Nothing retrieved -> nothing to ground on. The plan must include AI answers (Phase 5).
+        if self._ai is not None and passages and entitlements.widget_has(conn, "ai_answers"):
             return self._ai.prepare(
                 conn,
                 context,

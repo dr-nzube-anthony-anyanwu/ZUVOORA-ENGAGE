@@ -32,6 +32,7 @@ from app.deps import (
 from app.errors import ApiError, forbidden, not_found
 from app.schemas import StrictModel
 from app.security.jwt import Principal
+from app.services import entitlements
 from app.services.answering.chunking import chunk_text
 from app.services.extraction import (
     MAX_UPLOAD_BYTES,
@@ -284,6 +285,7 @@ def upload_document(
             "where tenant_id = %s and archived_at is null",
             (tenant_id,),
         ).fetchone()["n"]
+        entitlements.require_below_limit(conn, tenant_id, "documents", active)  # plan limit
     if active >= MAX_DOCUMENTS:
         raise ApiError(
             409, "limit_reached", f"A clinic can have at most {MAX_DOCUMENTS} documents."

@@ -35,6 +35,8 @@ class CreateTenantIn(StrictModel):
     display_name: str = Field(min_length=2, max_length=120)
     timezone: str = Field(default="Africa/Lagos", max_length=64)
     owner_email: EmailStr
+    # Phase 5: the starting plan (default: an Essentials trial created by the database).
+    plan_key: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_]{1,40}$")
 
     @field_validator("timezone")
     @classmethod

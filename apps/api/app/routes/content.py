@@ -37,6 +37,7 @@ from app.deps import (
 )
 from app.errors import ApiError, forbidden, not_found
 from app.security.jwt import Principal
+from app.services import entitlements
 
 router = APIRouter(prefix="/tenants/{tenant_id}", tags=["clinic content"])
 
@@ -273,6 +274,8 @@ def _register_collection(kind: Kind) -> None:
             if count >= kind.max_items:
                 raise ApiError(409, "limit_reached",
                                f"A clinic can have at most {kind.max_items} active {kind.path}.")
+            if kind.table == "branches":  # plan limit (multi-branch is a higher-tier feature)
+                entitlements.require_below_limit(conn, tenant_id, "branches", count)
             try:
                 row = conn.execute(
                     sql.SQL("insert into {} (tenant_id, draft) values (%s, %s) returning "  # noqa: S608

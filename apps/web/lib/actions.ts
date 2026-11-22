@@ -614,3 +614,69 @@ export async function cancelAppointment(
   refresh(tenantId);
   return { ok: "Appointment cancelled. The patient is emailed." };
 }
+
+// ----- plans (Phase 5a; platform admins only — the API enforces MFA platform-admin access) ---------
+const PLAN_KEY = /^[a-z][a-z0-9_]{1,40}$/;
+const SUBSCRIPTION_STATUSES = ["trialing", "active", "past_due", "cancelled"] as const;
+const LIMIT_KEYS = [
+  "messages_month", "ai_usd_month", "emails_month", "bookings_month",
+  "documents", "staff_seats", "domains", "branches",
+] as const;
+
+function amount(form: FormData, name: string): number | null {
+  const value = text(form, name);
+  if (value === null) return null;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) throw new UserInputError("Amounts must be positive numbers.");
+  return n;
+}
+
+export async function changeSubscription(
+  tenantId: string, _prev: ActionState, form: FormData,
+): Promise<ActionState> {
+  try {
+    ids(tenantId);
+    const plan = text(form, "plan_key");
+    if (!plan || !PLAN_KEY.test(plan)) throw new InvalidInput("invalid plan");
+    const status = oneOf(form.get("status"), SUBSCRIPTION_STATUSES);
+    const periodEnd = text(form, "current_period_end");
+    await apiFetch(`/api/v1/platform/tenants/${tenantId}/subscription`, {
+      method: "PUT",
+      json: {
+        plan_key: plan, status,
+        current_period_end: periodEnd ? new Date(`${periodEnd}T23:59:59Z`).toISOString() : null,
+        monthly_price_override_ngn: amount(form, "monthly_price_override_ngn"),
+        notes: text(form, "notes"),
+      },
+    });
+  } catch (error) {
+    return failure(error);
+  }
+  revalidatePath("/platform");
+  return { ok: "Subscription updated. The clinic's data and widget are unchanged." };
+}
+
+export async function updatePlan(
+  planKey: string, _prev: ActionState, form: FormData,
+): Promise<ActionState> {
+  try {
+    if (!PLAN_KEY.test(planKey)) throw new InvalidInput("invalid plan");
+    const limits: Record<string, number> = {};
+    for (const key of LIMIT_KEYS) {
+      const value = amount(form, `limit:${key}`);
+      if (value !== null) limits[key] = value;
+    }
+    await apiFetch(`/api/v1/platform/plans/${planKey}`, {
+      method: "PUT",
+      json: {
+        monthly_price_ngn: amount(form, "monthly_price_ngn"),
+        setup_fee_ngn: amount(form, "setup_fee_ngn"),
+        limits,
+      },
+    });
+  } catch (error) {
+    return failure(error);
+  }
+  revalidatePath("/platform");
+  return { ok: "Plan saved." };
+}

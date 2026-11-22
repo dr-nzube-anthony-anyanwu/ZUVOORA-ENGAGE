@@ -29,6 +29,7 @@ from app.db import Database
 from app.deps import get_db
 from app.errors import ApiError, log_security_event
 from app.schemas import StrictModel
+from app.services import entitlements
 from app.services.answering.pipeline import FactsFirstResponder
 from app.services.assistant import (
     Answer,
@@ -197,7 +198,7 @@ def frame_config(
     with db.widget_transaction(clinic["tenant_id"]) as conn:
         booking = conn.execute(
             "select exists (select 1 from public.appointment_types) as ok"
-        ).fetchone()["ok"]
+        ).fetchone()["ok"] and entitlements.widget_has(conn, "booking")
     return FrameConfigOut(
         ticket=tokens.issue_ticket(body.key, host),
         clinic=clinic["display_name"],

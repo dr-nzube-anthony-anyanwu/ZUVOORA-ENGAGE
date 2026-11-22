@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { apiGet, tenantPath } from "@/lib/api";
 import { loadClinic } from "@/lib/clinic";
-import { ROLE_LABEL, canHandleInbox, type InboxSummary } from "@/lib/types";
+import { ROLE_LABEL, canEdit, canHandleInbox, type InboxSummary } from "@/lib/types";
 
 /** The inbox badge is a convenience: if it cannot load, the page still renders. */
 async function inboxSummary(tenantId: string): Promise<InboxSummary | null> {
@@ -53,6 +53,7 @@ export default async function ClinicLayout({
           {NAV.map((item) => (
             <Link key={item.href} href={`/clinics/${tenantId}${item.href}`}>{item.label}</Link>
           ))}
+          {canEdit(clinic.my_role) && <Link href={`/clinics/${tenantId}/plan`}>Plan &amp; usage</Link>}
         </nav>
         <form action="/auth/signout" method="post">
           <button type="submit" className="link-button">Sign out</button>

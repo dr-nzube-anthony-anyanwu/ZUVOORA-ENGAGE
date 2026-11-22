@@ -28,6 +28,7 @@ from app.schemas import (
     UpdateMemberRoleIn,
 )
 from app.security.jwt import Principal
+from app.services import entitlements
 from app.services.supabase_admin import AuthAdminError, SupabaseAuthAdmin
 
 router = APIRouter(prefix="/tenants/{tenant_id}", tags=["tenants"])
@@ -91,6 +92,13 @@ def invite_member(
     with tenant_transaction(request, db, principal, tenant_id, MANAGER_ROLES) as (conn, my_role):
         if body.role == "owner" and my_role != "owner":
             raise forbidden("Only an owner can grant the owner role.")
+        # Plan limit, checked before any invitation email is sent.
+        seats = conn.execute(
+            "select count(*) as n from public.tenant_memberships "
+            "where tenant_id = %s and is_active",
+            (tenant_id,),
+        ).fetchone()["n"]
+        entitlements.require_below_limit(conn, tenant_id, "staff_seats", seats)
 
         user_id = conn.execute(
             "select app_private.find_user_id_for_invite(%s, %s) as id", (tenant_id, body.email)

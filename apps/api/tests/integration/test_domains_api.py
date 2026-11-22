@@ -260,6 +260,13 @@ def test_remove_releases_hostname_and_reclaim_gets_new_token(client, world, dns)
 
 
 def test_domain_limit(client, world, dns, admin_db):
+    # Phase 5: plans also limit domains; lift the plan limit so this checks the absolute ceiling.
+    admin_db.execute(
+        "insert into public.tenant_overrides (tenant_id, kind, key, limit_value, reason) "
+        "values (%s, 'limit', 'domains', 50, 'absolute ceiling test') "
+        "on conflict (tenant_id, kind, key) do update set limit_value = 50",
+        (world.tenant_b,),
+    )
     existing = admin_db.execute(
         "select count(*) from public.tenant_domains where tenant_id = %s and removed_at is null",
         (world.tenant_b,),
@@ -267,5 +274,11 @@ def test_domain_limit(client, world, dns, admin_db):
     for _ in range(10 - existing):
         add(client, world.b_owner, world.tenant_b, host())
     over = client.post(url(world.tenant_b), headers=world.b_owner.auth, json={"hostname": host()})
-    assert over.status_code == 409
-    assert over.json()["error"]["code"] == "limit_reached"
+    try:
+        assert over.status_code == 409
+        assert over.json()["error"]["code"] == "limit_reached"
+    finally:
+        admin_db.execute(
+            "delete from public.tenant_overrides where tenant_id = %s and key = 'domains'",
+            (world.tenant_b,),
+        )

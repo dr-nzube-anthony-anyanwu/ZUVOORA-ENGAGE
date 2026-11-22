@@ -235,8 +235,9 @@ def world(client, gotrue, admin_db) -> World:
         response = client.post(
             "/api/v1/platform/tenants",
             headers=platform_admin.auth_mfa,
+            # Full catalogue for the shared test clinics; plan gates are tested explicitly.
             json={"legal_name": f"{name} Test Ltd", "display_name": name,
-                  "owner_email": owner.email},
+                  "owner_email": owner.email, "plan_key": "full_zuvoora"},
         )
         assert response.status_code == 201, response.text
         tenant_id = response.json()["tenant"]["id"]

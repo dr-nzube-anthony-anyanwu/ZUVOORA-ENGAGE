@@ -28,6 +28,7 @@ from app.deps import (
 from app.errors import ApiError, forbidden, not_found
 from app.schemas import StrictModel
 from app.security.jwt import Principal
+from app.services import entitlements
 from app.services.domain_verification import (
     CheckResult,
     DomainVerifier,
@@ -127,7 +128,8 @@ def add_domain(
             "where tenant_id = %s and removed_at is null",
             (tenant_id,),
         ).fetchone()["n"]
-        if count >= MAX_DOMAINS:
+        entitlements.require_below_limit(conn, tenant_id, "domains", count)  # plan limit first
+        if count >= MAX_DOMAINS:  # absolute ceiling, whatever the plan says
             raise ApiError(
                 409, "limit_reached", f"A clinic can register at most {MAX_DOMAINS} domains."
             )

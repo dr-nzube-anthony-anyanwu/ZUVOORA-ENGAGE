@@ -260,5 +260,60 @@ export type ProviderEventType = {
   offered: boolean;
 };
 
+export type PlanFeature = {
+  key: string;
+  name: string;
+  description: string | null;
+  available: boolean;
+  included: boolean;
+};
+
+export type SubscriptionStatus = "trialing" | "active" | "past_due" | "cancelled";
+
+export type ClinicPlan = {
+  plan_key: string;
+  plan_name: string;
+  status: SubscriptionStatus;
+  current_period_end: string | null;
+  features: PlanFeature[];
+  limits: Record<string, number>;
+};
+
+export type CataloguePlan = {
+  key: string;
+  name: string;
+  description: string | null;
+  tier_order: number;
+  monthly_price_ngn: number | null;
+  setup_fee_ngn: number | null;
+  is_public: boolean;
+  features: string[];
+  limits: Record<string, number>;
+};
+
+export type Catalogue = { plans: CataloguePlan[]; features: PlanFeature[] };
+
+export type Subscription = {
+  tenant_id: string;
+  display_name: string;
+  tenant_status: string;
+  plan_key: string;
+  status: SubscriptionStatus;
+  current_period_end: string | null;
+  monthly_price_override_ngn: number | null;
+  notes: string | null;
+};
+
+export const LIMIT_LABELS: Record<string, string> = {
+  messages_month: "Chat messages per month",
+  ai_usd_month: "AI spend per month (USD)",
+  emails_month: "Emails per month",
+  bookings_month: "Bookings per month",
+  documents: "Knowledge documents",
+  staff_seats: "Staff accounts",
+  domains: "Website domains",
+  branches: "Branches",
+};
+
 /** Result of a Server Action, shown next to the form that submitted it. */
 export type ActionState = { ok?: string; error?: string; details?: string[] } | null;

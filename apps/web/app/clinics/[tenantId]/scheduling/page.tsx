@@ -5,7 +5,7 @@ import {
   connectScheduling, disconnectScheduling, saveAppointmentTypes, setReminder2h, setupBookingUpdates,
 } from "@/lib/actions";
 import { load, loadClinic } from "@/lib/clinic";
-import { canEdit, type ProviderEventType, type SchedulingSettings } from "@/lib/types";
+import { canEdit, type ClinicPlan, type ProviderEventType, type SchedulingSettings } from "@/lib/types";
 
 /** The provider's appointment types, or a message when the provider cannot be reached. */
 async function providerTypes(tenantId: string): Promise<ProviderEventType[] | string> {
@@ -24,6 +24,8 @@ export default async function SchedulingPage({ params }: { params: Promise<{ ten
   const editable = canEdit(clinic.my_role);
   const connection = settings.connection;
   const types = editable && connection ? await providerTypes(tenantId) : null;
+  // Display only: the API refuses features outside the plan regardless of what is shown here.
+  const plan = editable ? await load<ClinicPlan>(tenantId, "plan") : null;
   const names = new Map(settings.appointment_types.map((t) => [t.provider_event_type_id, t.name]));
 
   return (
@@ -94,9 +96,13 @@ export default async function SchedulingPage({ params }: { params: Promise<{ ten
                 tone={connection.webhook_configured_at ? "secondary" : "primary"}
                 confirmText={connection.webhook_configured_at
                   ? "Create a new webhook secret? Update it in Cal.com if you added the webhook by hand." : undefined} />
-              <ActionButton action={setReminder2h.bind(null, tenantId, !connection.reminder_2h)}
-                submitLabel={connection.reminder_2h ? "Turn off 2-hour reminders" : "Also remind 2 hours before"}
-                tone="secondary" />
+              {plan?.features.some((f) => f.key === "reminders" && f.included && f.available) ? (
+                <ActionButton action={setReminder2h.bind(null, tenantId, !connection.reminder_2h)}
+                  submitLabel={connection.reminder_2h ? "Turn off 2-hour reminders" : "Also remind 2 hours before"}
+                  tone="secondary" />
+              ) : (
+                <p className="hint">Appointment reminders are included from the Professional plan.</p>
+              )}
             </div>
           ) : <ReadOnlyNotice />}
         </section>

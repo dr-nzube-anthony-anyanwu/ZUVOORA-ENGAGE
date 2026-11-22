@@ -27,6 +27,9 @@ insert into public.tenants (id, legal_name, display_name, status) values
   ('10000000-0000-4000-8000-00000000000a', 'Clinic A Ltd', 'Clinic A', 'active');
 insert into public.tenant_memberships (tenant_id, user_id, role) values
   ('10000000-0000-4000-8000-00000000000a', '00000000-0000-4000-8000-0000000000a1', 'owner');
+-- Reminders are a Professional feature (Phase 5); Essentials gets none (13_entitlements).
+update public.tenant_subscriptions set plan_key = 'professional', status = 'active'
+  where tenant_id = '10000000-0000-4000-8000-00000000000a';
 insert into public.scheduling_connections (id, tenant_id, provider, credential_ciphertext, credential_key_id,
     webhook_secret_ciphertext, webhook_key_id) values
   ('70000000-0000-4000-8000-0000000000a1', '10000000-0000-4000-8000-00000000000a', 'calcom', '\x00'::bytea,

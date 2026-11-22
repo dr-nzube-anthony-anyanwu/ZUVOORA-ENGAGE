@@ -31,6 +31,7 @@ from app.deps import (
 from app.errors import ApiError, not_found
 from app.schemas import StrictModel
 from app.security.jwt import Principal
+from app.services import entitlements
 from app.services.scheduling import webhooks
 from app.services.scheduling.base import (
     CredentialRejected,
@@ -214,6 +215,7 @@ def _provider_types(
     factory: ProviderFactory,
 ) -> tuple[uuid.UUID, list[EventType]]:
     with tenant_transaction(request, db, principal, tenant_id, MANAGER_ROLES) as (conn, _):
+        entitlements.require(conn, tenant_id, "booking")
         connection = _live_connection(conn, tenant_id)
         if connection is None:
             raise ApiError(409, "not_connected", "No scheduling account is connected.")
@@ -275,6 +277,7 @@ def connect(
         )
     # 1. Authorise before touching the provider.
     with tenant_transaction(request, db, principal, tenant_id, MANAGER_ROLES) as (conn, _):
+        entitlements.require(conn, tenant_id, "booking")
         if _live_connection(conn, tenant_id):
             raise ApiError(
                 409,
@@ -487,6 +490,7 @@ def configure_webhook(
     owner adds it by hand with the URL and secret returned once.
     """
     with tenant_transaction(request, db, principal, tenant_id, MANAGER_ROLES) as (conn, _):
+        entitlements.require(conn, tenant_id, "booking")
         connection = _live_connection(conn, tenant_id)
         if connection is None:
             raise ApiError(409, "not_connected", "No scheduling account is connected.")
@@ -545,6 +549,7 @@ def update_settings(
     db: Database = Depends(get_db),
 ) -> SchedulingOut:
     with tenant_transaction(request, db, principal, tenant_id, MANAGER_ROLES) as (conn, _):
+        entitlements.require(conn, tenant_id, "reminders")
         connection = _live_connection(conn, tenant_id)
         if connection is None:
             raise ApiError(409, "not_connected", "No scheduling account is connected.")

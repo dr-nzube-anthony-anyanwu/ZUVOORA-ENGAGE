@@ -35,6 +35,7 @@ from app.routes.widget_public import (
     get_widget_tokens,
 )
 from app.schemas import StrictModel
+from app.services import entitlements
 from app.services.scheduling.base import (
     Attendee,
     CredentialRejected,
@@ -130,6 +131,8 @@ class BookOut(BaseModel):
 def _type_and_provider(
     conn: psycopg.Connection, box: SecretsBox, factory: ProviderFactory, type_id: uuid.UUID
 ) -> tuple[dict, SchedulingProvider]:
+    if not entitlements.widget_has(conn, "booking"):  # server-side plan check (Phase 5)
+        raise ApiError(403, "booking_unavailable", UNAVAILABLE)
     row = conn.execute(
         "select t.id, t.name, t.duration_minutes, t.provider_event_type_id, t.connection_id, "
         "c.provider from public.appointment_types t "
@@ -203,6 +206,8 @@ def booking_options(
     with db.widget_transaction(ctx.tenant_id, ctx.conversation_id) as conn:
         _hit(conn, tokens, request, "booking_ip", _client_ip(request))
         _open_conversation(conn)
+        if not entitlements.widget_has(conn, "booking"):
+            return OptionsOut(available=False, types=[])
         rows = conn.execute(
             "select id, name, duration_minutes, requires_confirmation "
             "from public.appointment_types order by sort_order, name"

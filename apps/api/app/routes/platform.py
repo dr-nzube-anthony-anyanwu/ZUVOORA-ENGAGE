@@ -5,6 +5,7 @@ Require an active platform_admins row AND an MFA-verified session (aal2).
 
 import uuid
 
+import psycopg
 from fastapi import APIRouter, Depends, Request, status
 
 from app.db import Database
@@ -47,6 +48,16 @@ def create_tenant(
             (body.legal_name, body.display_name, body.timezone, principal.user_id),
         ).fetchone()
         conn.execute("insert into public.clinic_profiles (tenant_id) values (%s)", (tenant["id"],))
+        if body.plan_key:  # otherwise the database's default Essentials trial applies
+            try:
+                with conn.transaction():
+                    conn.execute(
+                        "update public.tenant_subscriptions set plan_key = %s, status = 'active', "
+                        "current_period_end = null where tenant_id = %s",
+                        (body.plan_key, tenant["id"]),
+                    )
+            except psycopg.errors.ForeignKeyViolation as exc:
+                raise ApiError(422, "unknown_plan", "Unknown plan.") from exc
 
         owner_id = conn.execute(
             "select app_private.find_user_id_for_invite(%s, %s) as id",
