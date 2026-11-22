@@ -9,7 +9,7 @@ timeouts/5xx on writes as `OutcomeUnknown` (never retry blindly).
 from __future__ import annotations
 
 import re
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
@@ -30,6 +30,7 @@ from app.services.scheduling.base import (
 V_EVENT_TYPES = "2026-06-12"
 V_SLOTS = "2024-09-04"
 V_BOOKINGS = "2026-02-25"
+V_BOOKINGS_LIST = "2026-05-01"
 _STATUS: dict[str, BookingStatus] = {
     "accepted": "confirmed",
     "pending": "pending",
@@ -205,6 +206,30 @@ class CalcomProvider:
             },
         )
         return self._booking(data)
+
+    def find_booking(
+        self, reference: str, event_type_id: str, start: datetime, attendee_email: str
+    ) -> Booking | None:
+        """Find the booking we tried to create (metadata.engage_ref) after an unknown outcome."""
+        data = self._request(
+            "GET",
+            "/v2/bookings",
+            V_BOOKINGS_LIST,
+            params={
+                "attendeeEmail": attendee_email,
+                "eventTypeId": event_type_id,
+                "afterStart": _iso(start - timedelta(minutes=1)),
+                "beforeEnd": _iso(start + timedelta(days=1)),
+                "limit": 100,
+            },
+        )
+        for item in data or []:
+            if (
+                isinstance(item, dict)
+                and (item.get("metadata") or {}).get("engage_ref") == reference
+            ):
+                return self._booking(item)
+        return None
 
     def cancel(self, provider_booking_id: str, reason: str | None) -> None:
         self._request(

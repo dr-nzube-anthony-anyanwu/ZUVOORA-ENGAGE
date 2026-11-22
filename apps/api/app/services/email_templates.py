@@ -60,3 +60,78 @@ def domain_lapsed(to: tuple[str, ...], clinic: str, hostname: str, domains_url: 
         text="\n\n".join([*lines, f"Website domains: {domains_url}", FOOTER]),
         html=_html(lines, ("Open Website domains", domains_url)),
     )
+
+
+PATIENT_FOOTER = (
+    "You receive this email because you booked through the clinic's website chat. "
+    "Please do not reply to this email."
+)
+
+
+def _patient_html(paragraphs: list[str]) -> str:
+    body = "".join(f"<p>{escape(p)}</p>" for p in paragraphs)
+    return (
+        '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;'
+        f'color:#203040">{body}<p style="color:#607080;font-size:12px">'
+        f"{escape(PATIENT_FOOTER)}</p></div>"
+    )
+
+
+def booking_confirmation(
+    to: str,
+    name: str,
+    clinic: str,
+    type_name: str,
+    start: datetime,
+    attendee_zone: str,
+    pending: bool,
+    clinic_phone: str | None,
+) -> Email:
+    when = _local(start, attendee_zone)
+    if pending:
+        subject = f"Your appointment request at {clinic}"
+        first = (
+            f"Hello {name}, your request for {type_name} at {clinic} on {when} has been "
+            "received. The clinic will confirm it and you will receive another email."
+        )
+    else:
+        subject = f"Your appointment at {clinic} is booked"
+        first = f"Hello {name}, your {type_name} at {clinic} is booked for {when}."
+    contact = f"To change or cancel, please contact {clinic}" + (
+        f" on {clinic_phone}." if clinic_phone else "."
+    )
+    lines = [first, contact]
+    return Email(
+        to=(to,),
+        subject=subject,
+        text="\n\n".join([*lines, PATIENT_FOOTER]),
+        html=_patient_html(lines),
+    )
+
+
+def booking_alert(
+    to: tuple[str, ...],
+    clinic: str,
+    type_name: str,
+    start: datetime,
+    clinic_zone: str,
+    pending: bool,
+    conversation_url: str,
+) -> Email:
+    when = _local(start, clinic_zone)
+    state = (
+        "was requested and needs your confirmation in your scheduling account"
+        if pending
+        else "was booked"
+    )
+    lines = [
+        f"{type_name} on {when} {state} through the {clinic} website chat.",
+        "The patient's details are in the dashboard. For their privacy, they are not included "
+        "in this email.",
+    ]
+    return Email(
+        to=to,
+        subject=f"New online booking — {clinic}",
+        text="\n\n".join([*lines, f"Open the conversation: {conversation_url}", FOOTER]),
+        html=_html(lines, ("Open the conversation", conversation_url)),
+    )

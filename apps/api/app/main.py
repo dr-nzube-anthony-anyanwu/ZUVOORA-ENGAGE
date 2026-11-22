@@ -18,6 +18,7 @@ from app.routes.platform import router as platform_router
 from app.routes.scheduling import router as scheduling_router
 from app.routes.tenants import router as tenants_router
 from app.routes.widget_admin import router as widget_admin_router
+from app.routes.widget_booking import router as widget_booking_router
 from app.routes.widget_public import router as widget_public_router
 from app.security.jwt import TokenVerifier
 from app.services.ai.factory import build_responder
@@ -108,5 +109,6 @@ app.include_router(knowledge_router, prefix="/api/v1")
 app.include_router(widget_admin_router, prefix="/api/v1")
 app.include_router(inbox_router, prefix="/api/v1")
 app.include_router(scheduling_router, prefix="/api/v1")
+app.include_router(widget_booking_router)
 app.include_router(widget_public_router)
 app.include_router(platform_router, prefix="/api/v1")

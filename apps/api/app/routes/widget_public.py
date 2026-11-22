@@ -56,6 +56,9 @@ LIMITS = {
     "message_conversation": (3600, 40),
     "message_tenant": (86400, 5000),
     "handover_ip": (3600, 5),
+    "booking_ip": (3600, 60),
+    "booking_create_ip": (3600, 6),
+    "booking_create_conversation": (3600, 4),
 }
 
 
@@ -168,6 +171,7 @@ class FrameConfigOut(BaseModel):
     ticket: str
     clinic: str
     greeting: str
+    booking: bool = False
 
 
 @router.post("/api/v1/public/widget/frame-config", response_model=FrameConfigOut)
@@ -190,10 +194,15 @@ def frame_config(
     if clinic is None:
         log_security_event(request, "widget_frame_refused", host=host)
         raise ApiError(403, "widget_unavailable", "This chat is not available on this website.")
+    with db.widget_transaction(clinic["tenant_id"]) as conn:
+        booking = conn.execute(
+            "select exists (select 1 from public.appointment_types) as ok"
+        ).fetchone()["ok"]
     return FrameConfigOut(
         ticket=tokens.issue_ticket(body.key, host),
         clinic=clinic["display_name"],
         greeting=clinic["greeting"],
+        booking=booking,
     )
 
 

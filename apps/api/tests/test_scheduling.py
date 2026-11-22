@@ -256,3 +256,23 @@ def test_write_timeout_is_an_unknown_outcome_but_connect_failure_is_not():
 def test_booking_ids_cannot_escape_the_path(uid):
     with pytest.raises(ProviderRejected):
         calcom(lambda r: ok({})).cancel(uid, None)
+
+
+def test_find_booking_matches_our_reference_only():
+    seen = {}
+
+    def handler(request):
+        seen["request"] = request
+        return httpx.Response(200, json={"status": "success", "pagination": {"hasMore": False}, "data": [
+            {"uid": "other", "status": "accepted", "start": "2026-12-01T09:00:00Z", "metadata": {"engage_ref": "x"}},
+            {"uid": "mine", "status": "accepted", "start": "2026-12-01T09:00:00Z", "end": "2026-12-01T09:30:00Z",
+             "metadata": {"engage_ref": "ref-1"}},
+        ]})
+
+    found = calcom(handler).find_booking("ref-1", "101", datetime(2026, 12, 1, 9, tzinfo=UTC), "ada@example.com")
+    request = seen["request"]
+    assert request.headers["cal-api-version"] == "2026-05-01"
+    assert request.url.params["attendeeEmail"] == "ada@example.com"
+    assert request.url.params["eventTypeId"] == "101"
+    assert (found.provider_booking_id, found.status) == ("mine", "confirmed")
+    assert calcom(handler).find_booking("missing", "101", datetime(2026, 12, 1, tzinfo=UTC), "a@b.c") is None

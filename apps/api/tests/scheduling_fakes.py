@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from app.services.scheduling.base import (
     AccountInfo,
     Attendee,
     Booking,
+    BookingStatus,
     CredentialRejected,
     EventType,
+    OutcomeUnknown,
+    ProviderRejected,
     SchedulingError,
     Slot,
 )
@@ -26,6 +30,16 @@ EVENT_TYPES = [
 ]
 
 
+@dataclass
+class FakeBooking:
+    uid: str
+    event_type_id: str
+    start: datetime
+    attendee: Attendee
+    reference: str
+    status: BookingStatus
+
+
 class FakeProvider:
     name = "calcom"
 
@@ -33,42 +47,64 @@ class FakeProvider:
         self.world = world
         self.credential = credential
 
-    def _check(self) -> None:
+    def _check(self, operation: str) -> None:
         if self.credential in self.world.revoked or self.credential == REVOKED_KEY:
             raise CredentialRejected("http_401")
         if self.world.fail_next:
             error, self.world.fail_next = self.world.fail_next, None
             raise error
+        error = self.world.fail_on.pop(operation, None)
+        if error:
+            raise error
 
     def account(self) -> AccountInfo:
-        self._check()
+        self._check("account")
         return AccountInfo(label="dr-ada", time_zone="Africa/Lagos", username="dr-ada")
 
     def event_types(self) -> list[EventType]:
-        self._check()
+        self._check("event_types")
         return list(self.world.event_types)
 
     def slots(self, event_type_id: str, start: datetime, end: datetime) -> list[Slot]:
-        self._check()
-        first = start.replace(minute=0, second=0, microsecond=0) + timedelta(days=1)
+        self._check("slots")
+        taken = {b.start for b in self.world.bookings if b.status != "cancelled"}
         return [
-            Slot(first + timedelta(hours=h), first + timedelta(hours=h, minutes=45))
-            for h in (9, 10, 11)
+            Slot(s, s + timedelta(minutes=45))
+            for s in self.world.slot_starts
+            if start <= s <= end and s not in taken
         ]
 
     def book(
         self, event_type_id: str, start: datetime, attendee: Attendee, reference: str
     ) -> Booking:
-        self._check()
-        self.world.bookings.append((event_type_id, start, attendee, reference))
-        return Booking(f"uid{len(self.world.bookings)}", "confirmed", start.astimezone(UTC), None)
+        self._check("book")
+        if any(b.start == start and b.status != "cancelled" for b in self.world.bookings):
+            raise ProviderRejected("http_409")
+        uid = f"uid{len(self.world.bookings) + 1}"
+        booking = FakeBooking(
+            uid, event_type_id, start, attendee, reference, self.world.book_status
+        )
+        self.world.bookings.append(booking)
+        if self.world.lose_response:  # created at the provider, but the response never arrives
+            self.world.lose_response = False
+            raise OutcomeUnknown("timeout")
+        return Booking(uid, booking.status, start.astimezone(UTC), start + timedelta(minutes=45))
+
+    def find_booking(
+        self, reference: str, event_type_id: str, start: datetime, attendee_email: str
+    ) -> Booking | None:
+        self._check("find_booking")
+        for b in self.world.bookings:
+            if b.reference == reference:
+                return Booking(b.uid, b.status, b.start, b.start + timedelta(minutes=45))
+        return None
 
     def cancel(self, provider_booking_id: str, reason: str | None) -> None:
-        self._check()
+        self._check("cancel")
         self.world.cancelled.append(provider_booking_id)
 
     def reschedule(self, provider_booking_id: str, start: datetime) -> Booking:
-        self._check()
+        self._check("reschedule")
         return Booking(provider_booking_id + "r", "confirmed", start.astimezone(UTC), None)
 
 
@@ -79,7 +115,14 @@ class FakeWorld:
         self.event_types = list(EVENT_TYPES)
         self.revoked: set[str] = set()
         self.fail_next: SchedulingError | None = None
-        self.bookings: list = []
+        self.fail_on: dict[str, SchedulingError] = {}
+        self.book_status: BookingStatus = "confirmed"
+        self.lose_response = False
+        tomorrow = (datetime.now(UTC) + timedelta(days=1)).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        self.slot_starts = [tomorrow + timedelta(hours=h) for h in (8, 9, 10, 11)]
+        self.bookings: list[FakeBooking] = []
         self.cancelled: list[str] = []
         self.credentials_seen: list[str] = []
 

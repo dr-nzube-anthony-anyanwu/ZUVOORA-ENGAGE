@@ -4,7 +4,7 @@
  * is kept in memory only.
  */
 (() => {
-  type Config = { ticket: string; clinic: string; greeting: string };
+  type Config = { ticket: string; clinic: string; greeting: string; booking?: boolean };
   type ApiError = { error?: { code?: string; message?: string; details?: { msg: string }[] } };
 
   const root = document.getElementById("engage-app");
@@ -66,6 +66,14 @@
   const askTeam = el("button", "ask-team", "Contact the clinic team");
   askTeam.type = "button";
   askTeam.addEventListener("click", () => showHandover());
+  const booking = el("section", "booking");
+  booking.hidden = true;
+  booking.setAttribute("aria-label", "Book an appointment");
+  const bookOpen = el("button", "ask-team", "Book an appointment");
+  bookOpen.type = "button";
+  bookOpen.addEventListener("click", () => void openBooking());
+  const actions = el("div", "actions");
+  actions.append(bookOpen, askTeam);
   const footer = el("p", "foot",
     "Automated assistant for clinic information — not medical advice. In an emergency, go to the nearest emergency department.");
 
@@ -83,7 +91,8 @@
     }
     title.textContent = config.clinic;
     document.title = `Chat with ${config.clinic}`;
-    app.append(header, log, handover, form, askTeam, footer);
+    bookOpen.hidden = !config.booking;
+    app.append(header, log, handover, booking, form, actions, footer);
     addMessage("assistant", config.greeting);
   }
 
@@ -104,7 +113,8 @@
     const data = (await response.json().catch(() => ({}))) as T & ApiError;
     if (!response.ok) {
       const detail = data.error?.details?.[0]?.msg;
-      throw new Error(detail ?? data.error?.message ?? "Something went wrong. Please try again.");
+      throw Object.assign(new Error(detail ?? data.error?.message ?? "Something went wrong. Please try again."),
+                          { code: data.error?.code ?? "" });
     }
     return data;
   }
@@ -145,6 +155,148 @@
       form.requestSubmit();
     }
   });
+
+  // ----- booking (Phase 4c): type -> time -> details -> result --------------------------------
+  type BookingType = { id: string; name: string; duration_minutes: number; requires_confirmation: boolean };
+  const visitorZone = (() => {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    } catch {
+      return "UTC";
+    }
+  })();
+
+  function bookingStep(heading: string, ...children: HTMLElement[]): void {
+    const close = el("button", "link", "Cancel");
+    close.type = "button";
+    close.addEventListener("click", () => {
+      booking.hidden = true;
+      bookOpen.hidden = false;
+    });
+    const top = el("div", "booking-head");
+    top.append(el("p", "handover-title", heading), close);
+    booking.replaceChildren(top, ...children);
+    booking.hidden = false;
+    bookOpen.hidden = true;
+    (booking.querySelector("button.choice, input") as HTMLElement | null)?.focus();
+  }
+
+  async function openBooking(): Promise<void> {
+    bookingStep("Book an appointment", el("p", "hint", "Loading…"));
+    try {
+      const options = await post<{ available: boolean; types: BookingType[] }>(
+        "/api/v1/public/widget/booking/options", { token: await ensureSession() });
+      if (!options.available) {
+        bookingStep("Book an appointment", el("p", "hint", "Online booking is not available right now."));
+        return;
+      }
+      const list = el("div", "choices");
+      for (const kind of options.types) {
+        const choice = el("button", "choice", `${kind.name} · ${kind.duration_minutes} min`);
+        choice.type = "button";
+        choice.addEventListener("click", () => void chooseTime(kind));
+        list.append(choice);
+      }
+      bookingStep("What would you like to book?", list);
+    } catch (error) {
+      bookingStep("Book an appointment", el("p", "hint", (error as Error).message));
+    }
+  }
+
+  async function chooseTime(kind: BookingType, notice?: string): Promise<void> {
+    bookingStep(kind.name, el("p", "hint", "Finding available times…"));
+    try {
+      const result = await post<{ slots: string[] }>("/api/v1/public/widget/booking/slots",
+        { token: await ensureSession(), appointment_type_id: kind.id });
+      const days = new Map<string, Date[]>();
+      const dayLabel = new Intl.DateTimeFormat(undefined, { weekday: "long", day: "numeric", month: "long", timeZone: visitorZone });
+      for (const iso of result.slots) {
+        const moment = new Date(iso);
+        const label = dayLabel.format(moment);
+        days.set(label, [...(days.get(label) ?? []), moment]);
+      }
+      const children: HTMLElement[] = [];
+      if (notice) children.push(el("p", "notice", notice));
+      if (days.size === 0) {
+        children.push(el("p", "hint", "No times are available in the next two weeks. You can ask the clinic team to contact you."));
+      }
+      const time = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", timeZone: visitorZone });
+      for (const [label, moments] of [...days].slice(0, 7)) {
+        const group = el("div", "day");
+        group.append(el("p", "day-label", label));
+        const row = el("div", "choices times");
+        for (const moment of moments) {
+          const choice = el("button", "choice", time.format(moment));
+          choice.type = "button";
+          choice.setAttribute("aria-label", `${label}, ${time.format(moment)}`);
+          choice.addEventListener("click", () => details(kind, moment, `${label}, ${time.format(moment)}`));
+          row.append(choice);
+        }
+        group.append(row);
+        children.push(group);
+      }
+      children.push(el("p", "hint", `Times are shown in your time zone (${visitorZone}).`));
+      bookingStep(`${kind.name}: choose a time`, ...children);
+    } catch (error) {
+      bookingStep(kind.name, el("p", "hint", (error as Error).message));
+    }
+  }
+
+  function details(kind: BookingType, moment: Date, label: string): void {
+    const box = el("form", "booking-form");
+    const fields: [string, string, string, boolean, number][] = [
+      ["name", "Full name", "text", true, 120],
+      ["email", "Email", "email", true, 254],
+      ["phone", "Phone (optional)", "tel", false, 30],
+    ];
+    for (const [name, text, type, required, max] of fields) {
+      const wrap = el("label", "field", text);
+      const field = el("input");
+      field.name = name;
+      field.type = type;
+      field.required = required;
+      field.maxLength = max;
+      field.setAttribute("autocomplete", name === "phone" ? "tel" : name);
+      wrap.append(field);
+      box.append(wrap);
+    }
+    const consentWrap = el("label", "consent");
+    const consent = el("input");
+    consent.type = "checkbox";
+    consent.required = true;
+    consentWrap.append(consent, el("span", undefined,
+      ` I agree that ${config.clinic} may use these details to manage this appointment.`));
+    const submit = el("button", "send", kind.requires_confirmation ? "Request this time" : "Book this time");
+    submit.type = "submit";
+    box.append(consentWrap, el("p", "hint", "Please don't include medical details."), submit);
+    box.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const data = new FormData(box);
+      const value = (k: string) => String(data.get(k) ?? "").trim();
+      submit.disabled = true;
+      submit.textContent = "Booking…";
+      try {
+        const result = await post<{ status: string; message: string }>("/api/v1/public/widget/booking", {
+          token: await ensureSession(), appointment_type_id: kind.id, start: moment.toISOString(),
+          name: value("name"), email: value("email"), phone: value("phone") || null,
+          time_zone: visitorZone, consent: consent.checked,
+        });
+        booking.hidden = true;
+        bookOpen.hidden = false;
+        addMessage("system", result.message);
+      } catch (error) {
+        const failure = error as Error & { code?: string };
+        if (failure.code === "slot_unavailable") {
+          void chooseTime(kind, failure.message);
+          return;
+        }
+        submit.disabled = false;
+        submit.textContent = kind.requires_confirmation ? "Request this time" : "Book this time";
+        addMessage("system", failure.message);
+      }
+    });
+    bookingStep(`${kind.name}: ${label}`, box);
+  }
 
   function showHandover(focus = true): void {
     handover.hidden = false;

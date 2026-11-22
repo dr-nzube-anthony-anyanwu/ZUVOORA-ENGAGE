@@ -143,3 +143,21 @@ def test_handover_alert_has_no_patient_details_and_escapes_html():
     assert "<b>Clinic</b>" not in email.html and "&lt;b&gt;Clinic&lt;/b&gt; &amp; Co" in email.html
     assert "https://dash.example.com/clinics/t/inbox/c" in email.html
     assert "not included in this email" in email.text
+
+
+def test_booking_emails():
+    start = datetime(2026, 12, 1, 8, 0, tzinfo=UTC)
+    patient = email_templates.booking_confirmation(
+        "ada@example.com", "Ada", "<Clinic>", "Eye exam", start, "Africa/Lagos", False, "+234 1"
+    )
+    assert patient.to == ("ada@example.com",)
+    assert "09:00 Africa/Lagos" in patient.text and "is booked for" in patient.text
+    assert "&lt;Clinic&gt;" in patient.html and "<Clinic>" not in patient.html
+    pending = email_templates.booking_confirmation(
+        "ada@example.com", "Ada", "C", "Eye exam", start, "UTC", True, None
+    )
+    assert "will confirm" in pending.text and pending.subject.startswith("Your appointment request")
+    staff = email_templates.booking_alert(
+        ("staff@example.com",), "C", "Eye exam", start, "Africa/Lagos", True, "https://d/x"
+    )
+    assert "needs your confirmation" in staff.text and "ada" not in staff.text.lower()

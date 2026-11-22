@@ -27,4 +27,16 @@ body { font:14px/1.5 Arial, Helvetica, sans-serif; color:var(--ink); background:
 .ask-team { align-self:center; margin:2px 0 0; font:inherit; font-size:13px; font-weight:700; background:none; border:0; color:var(--teal); text-decoration:underline; cursor:pointer; padding:2px 6px; }
 .ask-team[hidden] { display:none; }
 .ask-team:focus-visible, .close:focus-visible { outline:2px solid var(--teal); outline-offset:2px; }
+.actions { display:flex; justify-content:center; flex-wrap:wrap; gap:4px 12px; }
+.booking { display:grid; gap:8px; padding:12px 14px; border-top:1px solid var(--line); background:#fff; max-height:55%; overflow-y:auto; }
+.booking[hidden] { display:none; }
+.booking-head { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+.booking-form { display:grid; gap:8px; }
+.booking .link { font:inherit; font-size:13px; background:none; border:0; color:var(--teal); text-decoration:underline; cursor:pointer; }
+.choices { display:flex; flex-wrap:wrap; gap:6px; }
+.choice { font:inherit; font-size:13px; padding:7px 10px; border:1px solid var(--teal); border-radius:8px; background:#fff; color:var(--navy); cursor:pointer; }
+.choice:hover, .choice:focus-visible { background:var(--surface); outline:2px solid var(--teal); outline-offset:1px; }
+.day-label { margin:4px 0; font-size:13px; font-weight:700; }
+.notice { margin:0; padding:6px 8px; border-radius:8px; background:#fff4dc; color:#7a5200; font-size:13px; }
+.booking input:focus { outline:2px solid var(--teal); outline-offset:1px; }
 .foot { margin:0; padding:6px 12px 8px; font-size:11px; color:var(--muted); text-align:center; }

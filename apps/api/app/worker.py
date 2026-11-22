@@ -26,6 +26,9 @@ from app.config import Settings, get_settings
 from app.db import Database
 from app.services import email_templates
 from app.services.email import Email, EmailError, EmailSender, build_sender
+from app.services.scheduling.base import CredentialRejected, ProviderFactory, SchedulingError
+from app.services.scheduling.calcom import DefaultProviderFactory
+from app.services.secrets_box import Sealed, SecretsBox, SecretsBoxError
 
 log = logging.getLogger("engage.worker")
 BATCH = 10
@@ -83,10 +86,124 @@ def domain_lapsed(conn: psycopg.Connection, job: dict, settings: Settings) -> Em
     return email_templates.domain_lapsed(to, row["clinic"], row["hostname"], url)
 
 
-HANDLERS: dict[str, Handler] = {"handover_alert": handover_alert, "domain_lapsed": domain_lapsed}
+def _booking(conn: psycopg.Connection, job: dict) -> dict | None:
+    return conn.execute(
+        "select * from app_private.job_booking(%s)", (job["payload"].get("appointment_id"),)
+    ).fetchone()
 
 
-def process_batch(db: Database, sender: EmailSender, settings: Settings) -> Counter:
+def booking_confirmation(conn: psycopg.Connection, job: dict, settings: Settings) -> Email | Skip:
+    row = _booking(conn, job)
+    if row is None:
+        return Skip("clinic inactive or booking removed")
+    if row["status"] not in ("confirmed", "pending"):  # cancelled/failed since it was queued
+        return Skip(f"booking is {row['status']}")
+    return email_templates.booking_confirmation(
+        row["attendee_email"],
+        row["attendee_name"],
+        row["clinic"],
+        row["type_name"],
+        row["start_at"],
+        row["attendee_time_zone"],
+        row["status"] == "pending",
+        row["clinic_phone"],
+    )
+
+
+def booking_alert(conn: psycopg.Connection, job: dict, settings: Settings) -> Email | Skip:
+    row = _booking(conn, job)
+    if row is None:
+        return Skip("clinic inactive or booking removed")
+    if row["status"] not in ("confirmed", "pending"):
+        return Skip(f"booking is {row['status']}")
+    to = _recipients(conn, row["tenant_id"], ["owner", "admin", "receptionist"])
+    if not to:
+        return Skip("no recipients")
+    url = f"{settings.dashboard_url}/clinics/{row['tenant_id']}/inbox/{row['conversation_id']}"
+    return email_templates.booking_alert(
+        to,
+        row["clinic"],
+        row["type_name"],
+        row["start_at"],
+        row["clinic_time_zone"],
+        row["status"] == "pending",
+        url,
+    )
+
+
+HANDLERS: dict[str, Handler] = {
+    "handover_alert": handover_alert,
+    "domain_lapsed": domain_lapsed,
+    "booking_confirmation": booking_confirmation,
+    "booking_alert": booking_alert,
+}
+
+# Reconciliation attempts after an unknown booking outcome: 1 min, +2 min, +7 min.
+RECONCILE_DELAYS = {1: 120, 2: 420}
+
+
+def reconcile_booking(
+    db: Database, job: dict, box: SecretsBox | None, providers: ProviderFactory | None
+) -> str:
+    """Find the booking we tried to create; confirm it, retry later, or record the failure."""
+    if box is None or providers is None:
+        raise EmailError("integrations_not_configured", permanent=False)
+    appointment_id = job["payload"].get("appointment_id")
+    attempt = int(job["payload"].get("attempt", 1))
+    with db.jobs_transaction() as conn:
+        row = conn.execute(
+            "select * from app_private.job_booking_reconcile(%s)", (appointment_id,)
+        ).fetchone()
+    if row is None:
+        return "skipped:gone"
+    if row["status"] != "unknown":
+        return "skipped:resolved"
+    try:
+        key = box.open(
+            Sealed(bytes(row["ciphertext"]), row["key_id"]),
+            purpose="scheduling",
+            tenant_id=row["tenant_id"],
+            record_id=row["connection_id"],
+        )
+    except SecretsBoxError as exc:
+        raise EmailError("credential_unreadable", permanent=True) from exc
+    provider = providers(row["provider"], key)
+    try:  # no transaction open during the provider call
+        found = provider.find_booking(
+            appointment_id, row["provider_event_type_id"], row["start_at"], row["attendee_email"]
+        )
+    except CredentialRejected as exc:
+        raise EmailError("credential_rejected", permanent=True) from exc
+    except SchedulingError as exc:
+        raise EmailError(f"provider:{exc.kind}", permanent=False) from exc
+    with db.jobs_transaction() as conn:
+        if found and found.status in ("confirmed", "pending"):
+            conn.execute(
+                "select app_private.job_resolve_booking(%s, %s, %s)",
+                (appointment_id, found.status, found.provider_booking_id),
+            )
+            return f"resolved:{found.status}"
+        if found or attempt not in RECONCILE_DELAYS:
+            reason = f"provider_status:{found.status}" if found else "not_found_after_reconcile"
+            conn.execute(
+                "select app_private.job_resolve_booking(%s, 'failed', null, %s)",
+                (appointment_id, reason),
+            )
+            return "resolved:failed"
+        conn.execute(
+            "select app_private.job_retry_reconcile(%s, %s, %s)",
+            (appointment_id, attempt + 1, RECONCILE_DELAYS[attempt]),
+        )
+        return "retry_scheduled"
+
+
+def process_batch(
+    db: Database,
+    sender: EmailSender,
+    settings: Settings,
+    box: SecretsBox | None = None,
+    providers: ProviderFactory | None = None,
+) -> Counter:
     outcome: Counter = Counter()
     with db.jobs_transaction() as conn:
         jobs = conn.execute(
@@ -94,6 +211,18 @@ def process_batch(db: Database, sender: EmailSender, settings: Settings) -> Coun
         ).fetchall()
     for job in jobs:
         try:
+            if job["kind"] == "booking_reconcile":
+                result = reconcile_booking(db, job, box, providers)
+                with db.jobs_transaction() as conn:
+                    if result.startswith("skipped:"):
+                        conn.execute("select app_private.skip_job(%s, %s)", (job["id"], result))
+                    else:
+                        conn.execute(
+                            "select app_private.complete_job(%s, %s::jsonb)",
+                            (job["id"], json.dumps({"result": result})),
+                        )
+                outcome["reconciled"] += 1
+                continue
             handler = HANDLERS.get(job["kind"])
             if handler is None:
                 raise EmailError(f"unknown_kind:{job['kind']}", permanent=True)
@@ -160,11 +289,22 @@ def main(argv: list[str] | None = None) -> int:
     db = Database(settings)
     db.open()
     sender = build_sender(settings)
+    box = (
+        SecretsBox(
+            settings.integrations_encryption_key.get_secret_value(),
+            settings.integrations_encryption_key_previous.get_secret_value()
+            if settings.integrations_encryption_key_previous
+            else None,
+        )
+        if settings.integrations_encryption_key is not None
+        else None
+    )
+    providers = DefaultProviderFactory(settings.calcom_api_url)
     log.info("worker_started delivery=%s", settings.email_delivery)
     last_purge = 0.0
     try:
         while True:
-            counts = process_batch(db, sender, settings)
+            counts = process_batch(db, sender, settings, box, providers)
             if counts:
                 log.info("worker_batch %s", " ".join(f"{k}={v}" for k, v in sorted(counts.items())))
             if time.monotonic() - last_purge > PURGE_EVERY_SECONDS:

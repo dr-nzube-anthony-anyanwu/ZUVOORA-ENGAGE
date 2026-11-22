@@ -119,6 +119,10 @@ def chat(client, world, admin_db):
     admin_db.execute(
         "update public.widget_configs set enabled = false where tenant_id = %s", (world.tenant_a,)
     )
+    # Modules reuse this fixture: release the domain so the clinic stays under its limit.
+    admin_db.execute(
+        "update public.tenant_domains set removed_at = now() where hostname = %s", (host,)
+    )
     admin_db.execute(
         "update public.tenants set status = %s where id = %s", (original, world.tenant_a)
     )
