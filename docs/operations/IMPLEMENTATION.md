@@ -82,8 +82,10 @@ Plan approved by founder 2026-11-21 (ADR-026): caps $0.20/day per clinic, $0.50/
 - [x] **Phase 3 acceptance evidence:** widget only on verified domains (Playwright, real cross-site hosts); RAG isolation and prompt-injection tests pass (pgTAP, API, hostile-model and live evaluations); safe fallback and human handover work end to end (API + Playwright); quality 93.8% ≥ the agreed 90%.
 
 ## Phase 4
+Founder decisions (2026-11-22): Cal.com is the pilot provider (Calendly adapter in 4e); clinics connect with an API key/token now (OAuth later, after provider approval); background jobs in a Postgres queue, not Redis.
+
+- [x] 4a. Resend adapter and persistent jobs (ADR-033): migration `20261123000001_jobs_and_email.sql` (`app_private.jobs`; enqueue by the database on call-back requests and domain lapses; `claim_jobs` with SKIP LOCKED + lease, `complete_job`, `skip_job`, `fail_job` with backoff/dead letters/23-hour cut-off, `purge_finished_jobs`; send-time data functions that re-check status and clinic state). Worker `python -m app.worker` (Compose `worker` service; Redis removed). `ResendSender` with `Idempotency-Key`, `LogSender` (default), `AllowlistSender` outside production. Emails: call-back alert to the front desk and "website chat stopped" to owners/admins, with no patient details. pgTAP 269/269 (24 new); 21 new unit + integration tests (alert once, never twice; handled request skipped; retry with the same key; permanent failure dead; crash retried; suspended clinic skipped). Mutation check: removing the send-time status re-check failed a test. Live check: one real alert to the founder's test address; repeating the same idempotency key returned the same Resend message id (no second email).
 - [ ] Scheduling adapters and verified webhooks.
-- [ ] Resend adapter and persistent jobs.
 - [ ] Booking lifecycle and reminder suppression.
 
 ## Phase 5–6

@@ -58,7 +58,13 @@ class Settings(BaseSettings):
     ai_max_completion_usd_per_mtok: Decimal = Decimal("1.00")
     resend_api_key: SecretStr | None = None
     email_from: str | None = None
-    redis_url: str = "redis://localhost:6379/0"
+    # Transactional email (Phase 4a, ADR-033). "log" never sends (default outside production);
+    # "resend" sends through the Resend API.
+    email_delivery: Literal["log", "resend"] = "log"
+    # Outside production, real sending is limited to these recipients: exact addresses or
+    # "@domain" entries, comma-separated. Empty = nobody (everything suppressed).
+    email_allowed_recipients: str = ""
+    worker_poll_seconds: float = Field(default=5.0, ge=0.5, le=300)
 
     # Public widget (Phase 3b). The token secret signs frame tickets and conversation tokens.
     widget_token_secret: SecretStr | None = None
@@ -106,6 +112,22 @@ class Settings(BaseSettings):
         ):
             raise ValueError("AI budgets must satisfy 0 <= tenant daily <= global daily <= monthly")
         return self
+
+    @model_validator(mode="after")
+    def email_settings_are_consistent(self) -> "Settings":
+        if self.email_delivery == "resend":
+            if self.resend_api_key is None or not self.email_from:
+                raise ValueError("EMAIL_DELIVERY=resend requires RESEND_API_KEY and EMAIL_FROM")
+        if self.app_env == "production" and self.email_allowed_recipients.strip():
+            raise ValueError("EMAIL_ALLOWED_RECIPIENTS is a non-production safeguard only")
+        return self
+
+    @property
+    def email_allowlist(self) -> list[str] | None:
+        """None = everyone (production); otherwise the allowed addresses/@domains."""
+        if self.app_env == "production":
+            return None
+        return [x.strip().lower() for x in self.email_allowed_recipients.split(",") if x.strip()]
 
     def ai_tiers(self) -> dict[str, tuple[str, ...]]:
         return {

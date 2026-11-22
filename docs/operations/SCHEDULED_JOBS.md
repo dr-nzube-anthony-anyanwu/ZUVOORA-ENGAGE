@@ -1,4 +1,24 @@
-# Scheduled jobs
+# Background worker and scheduled jobs
+
+## Worker (always running)
+
+`python -m app.worker` (Compose service `worker`; `--once` processes due jobs and exits) sends
+the emails queued in `app_private.jobs` (ADR-033). Several copies may run. It needs the API's
+database settings plus the email settings:
+
+| Setting | Meaning |
+|---|---|
+| `EMAIL_DELIVERY` | `log` (default): nothing is sent. `resend`: send through the Resend API. |
+| `RESEND_API_KEY`, `EMAIL_FROM` | Required for `resend`. Use a sending-only key restricted to the verified domain. |
+| `EMAIL_ALLOWED_RECIPIENTS` | Outside production, the only addresses/`@domains` that receive real email. Empty = none. |
+| `WORKER_POLL_SECONDS` | Idle polling interval (default 5). |
+
+Current emails: **call-back request** alert to the clinic's owners, admins and receptionists
+(no patient details — a link to the inbox), and **website chat stopped** alert to owners/admins
+when a domain lapses. Failed sends retry with backoff for up to 23 hours, then become `dead`
+(visible to operators in `app_private.jobs`).
+
+## Scheduled jobs
 
 Jobs run as the `engage_jobs` database role (ADR-031): no user, no tenant, no table access — only
 the `app_private` functions granted to that role. They use the API's normal configuration

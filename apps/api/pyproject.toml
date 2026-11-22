@@ -63,5 +63,6 @@ extend-immutable-calls = ["fastapi.Depends", "fastapi.File", "fastapi.Form", "fa
 "tests/integration/test_inbox_api.py" = ["S101", "S105", "S106", "F811"]
 "tests/integration/test_domain_recheck.py" = ["S101", "S105", "S106", "F811"]
 "tests/integration/test_evaluation.py" = ["S101", "S105", "S106", "F811"]
+"tests/integration/test_worker.py" = ["S101", "S105", "S106", "F811"]
 # Evaluation data table: one case per line is easier to review.
 "tests/integration/eval_cases.py" = ["E501"]
