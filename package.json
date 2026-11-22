@@ -13,7 +13,10 @@
     "db:reset": "supabase db reset",
     "db:test": "supabase test db",
     "db:lint": "supabase db lint --level warning",
-    "env:local": "node scripts/write-local-env.mjs"
+    "env:local": "node scripts/write-local-env.mjs",
+    "demo:setup": "node apps/web/scripts/demo-setup.mjs",
+    "demo:site": "node apps/web/scripts/demo-site.mjs",
+    "demo:calendar": "node apps/web/e2e/calcom-fake.mjs"
   },
   "devDependencies": {
     "supabase": "2.122.1"

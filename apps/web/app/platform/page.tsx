@@ -1,7 +1,7 @@
-import { ActionForm } from "@/components/ActionForm";
+import { ActionButton, ActionForm } from "@/components/ActionForm";
 import { Badge, Field, formatDate } from "@/components/ui";
 import { ApiRequestError, apiGet } from "@/lib/api";
-import { changeSubscription } from "@/lib/actions";
+import { changeSubscription, createClinic, setClinicStatus } from "@/lib/actions";
 import type { Catalogue, PlatformOverview, Subscription } from "@/lib/types";
 
 const STATUSES = [
@@ -59,6 +59,31 @@ export default async function PlatformClinicsPage() {
           </tbody>
         </table>
       </section>
+      <section className="panel" aria-label="Create a clinic">
+        <h2>Create a clinic</h2>
+        <p className="hint">
+          The owner receives an invitation email to set a password. New clinics start as
+          &quot;pending&quot;: their website chat works once you activate them below.
+        </p>
+        <ActionForm action={createClinic} submitLabel="Create clinic">
+          <div className="form-grid">
+            <Field label="Clinic name (shown to patients)">
+              <input name="display_name" required minLength={2} maxLength={120} placeholder="e.g. Lumen Eye Clinic" />
+            </Field>
+            <Field label="Registered business name (optional)">
+              <input name="legal_name" maxLength={200} placeholder="e.g. Lumen Eye Clinic Ltd" />
+            </Field>
+            <Field label="Owner's email">
+              <input name="owner_email" type="email" required maxLength={254} autoComplete="off" />
+            </Field>
+            <Field label="Starting plan">
+              <select name="plan_key" defaultValue="essentials">
+                {catalogue.plans.map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}
+              </select>
+            </Field>
+          </div>
+        </ActionForm>
+      </section>
       <p>
         Assign each clinic&apos;s plan. Changing a plan never changes the clinic&apos;s data, website
         chat or widget key. No payment is taken here; prices are for your records.
@@ -71,10 +96,24 @@ export default async function PlatformClinicsPage() {
               <Badge tone={s.status === "active" ? "good" : s.status === "cancelled" ? "bad" : "warn"}>
                 {planName.get(s.plan_key) ?? s.plan_key} · {STATUSES.find((x) => x.key === s.status)?.label}
               </Badge>
-              {s.tenant_status !== "active" && <> <Badge tone="bad">Clinic {s.tenant_status}</Badge></>}
+              {" "}
+              {s.tenant_status === "active"
+                ? <Badge tone="good">Clinic active</Badge>
+                : <Badge tone="bad">Clinic {s.tenant_status}</Badge>}
             </span>
           </div>
           {s.current_period_end && <p className="muted small">Period ends {formatDate(s.current_period_end)}</p>}
+          <div className="button-row">
+            {s.tenant_status !== "active" && s.tenant_status !== "closed" && (
+              <ActionButton action={setClinicStatus.bind(null, s.tenant_id, "reactivate")}
+                            submitLabel={s.tenant_status === "pending" ? "Activate clinic" : "Reactivate clinic"} />
+            )}
+            {s.tenant_status === "active" && (
+              <ActionButton action={setClinicStatus.bind(null, s.tenant_id, "suspend")}
+                            submitLabel="Suspend clinic" tone="danger"
+                            confirmText={`Suspend ${s.display_name}? Its staff lose access and its website chat stops until you reactivate it.`} />
+            )}
+          </div>
           <ActionForm action={changeSubscription.bind(null, s.tenant_id)} submitLabel="Save subscription">
             <div className="form-grid">
               <Field label="Plan">

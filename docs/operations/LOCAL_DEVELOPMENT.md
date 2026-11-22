@@ -5,6 +5,75 @@ accounts or real secrets are needed. Use synthetic data only — never real pati
 
 Requirements: Python 3.12, Node.js 24 LTS (`.nvmrc`), Docker Desktop running.
 
+## Quick start — every day (after the first-time setup below)
+
+Open **three PowerShell terminals** in VS Code (Terminal → New Terminal) and run one block in each.
+Start them in this order and wait for each to be ready.
+
+**Terminal 1 — database (repository root)**
+```powershell
+cd D:\technologies\ZUVOORA-ENGAGE
+npm run db:start
+```
+Ready when it prints the local URLs (about 30–60 seconds; Docker Desktop must be running).
+
+**Terminal 2 — API (backend)**
+```powershell
+cd D:\technologies\ZUVOORA-ENGAGE\apps\api
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8073
+```
+Ready when it prints `Application startup complete`. Check: http://127.0.0.1:8073/health/ready
+
+**Terminal 3 — website and dashboard (frontend)**
+```powershell
+cd D:\technologies\ZUVOORA-ENGAGE\apps\web
+npm run dev
+```
+Ready when it prints `Ready`. Open http://localhost:3073 (public website) and
+http://localhost:3073/login (clinic and platform sign-in).
+
+**Optional terminal 4 — background worker** (emails, reminders, alerts; needed only when you
+want queued jobs to run — locally emails are only logged)
+```powershell
+cd D:\technologies\ZUVOORA-ENGAGE\apps\api
+.\.venv\Scripts\python.exe -m app.worker
+```
+
+**Stopping everything:** press `Ctrl+C` in terminals 2, 3 and 4, then in terminal 1:
+```powershell
+npm run db:stop
+```
+`db:stop` keeps your local data; the next `db:start` brings it back.
+
+| What | Address |
+|---|---|
+| Public website | http://localhost:3073 |
+| Sign in | http://localhost:3073/login |
+| API health | http://127.0.0.1:8073/health/ready |
+| Supabase Studio (local database UI) | http://127.0.0.1:54323 |
+| Mailpit (local emails, e.g. invitations) | http://127.0.0.1:54324 |
+
+**Demonstrating the product to others?** Follow the [Demo guide](DEMO_GUIDE.md) — it adds a
+sample clinic, demo accounts, a sample clinic website and a practice calendar.
+
+### Troubleshooting
+- **"port is already in use" (8073 or 3073):** an earlier API or dashboard is still running. Close
+  that terminal, or find it with `Get-NetTCPConnection -LocalPort 3073 -State Listen` and stop that
+  process.
+- **`db:start` fails or hangs:** start Docker Desktop and wait until it says it is running, then try
+  again.
+- **The dashboard shows "The Engage service is unavailable":** the API (terminal 2) is not running.
+- **`.venv` not found:** do the first-time API setup below.
+- **PowerShell refuses to run scripts:** the commands above call the virtual environment's Python
+  directly and do not need `Activate.ps1`. If you prefer activating it, run
+  `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` in that terminal first.
+- **Production-like run of the dashboard:** `npm run build` then `npm run start` (instead of
+  `npm run dev`).
+
+---
+
+## First-time setup
+
 ## 1. Local Supabase (repository root)
 ```powershell
 npm ci                 # installs the pinned Supabase CLI

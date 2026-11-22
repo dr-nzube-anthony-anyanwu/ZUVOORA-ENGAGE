@@ -34,6 +34,19 @@ test("platform admin changes a clinic's plan and the clinic sees it", async ({ p
   await clinicB.getByRole("button", { name: "Save subscription" }).click();
   await expect(clinicB.getByText(/Subscription updated/)).toBeVisible();
   await expect(page.getByRole("region", { name: "This month" })).toContainText("estimated monthly revenue");
+  // Create a clinic (the owner is invited by email) and make it live.
+  const newClinic = `E2E Created Clinic ${runId}`;
+  const create = page.getByRole("region", { name: "Create a clinic" });
+  await create.getByLabel("Clinic name (shown to patients)").fill(newClinic);
+  await create.getByLabel("Owner's email").fill(`e2e.created-owner.${runId}@example.com`);
+  await create.getByLabel("Starting plan").selectOption("professional");
+  await create.getByRole("button", { name: "Create clinic" }).click();
+  await expect(create.getByRole("status")).toContainText(`${newClinic} created. The owner has been emailed an invitation.`);
+  const created = page.getByRole("region", { name: newClinic });
+  await expect(created).toContainText("Clinic pending");
+  await created.getByRole("button", { name: "Activate clinic" }).click();
+  await expect(created.getByText("Clinic active", { exact: true })).toBeVisible();
+  await expect(created.getByRole("button", { name: "Suspend clinic" })).toBeVisible();
   await page.goto("/platform/plans");
   await expect(page.getByRole("region", { name: "Premium plan" })).toContainText("Voice AI (not yet available)");
   await page.context().clearCookies();

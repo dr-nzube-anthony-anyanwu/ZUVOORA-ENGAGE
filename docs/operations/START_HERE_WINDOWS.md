@@ -1,5 +1,9 @@
 # Start Here — Windows 10 + Transcend SSD + VS Code + Claude Code
 
+> **Already set up? To run the system day to day** (database, API, website/dashboard, worker —
+> start and stop), follow **[Local Development → Quick start](LOCAL_DEVELOPMENT.md#quick-start--every-day-after-the-first-time-setup-below)**.
+> This page records the original Phase 0 machine and repository setup.
+
 ## 1. Extract and move
 Your intended structure is:
 
@@ -52,6 +56,8 @@ git remote -v
 Only run the remote commands after replacing the placeholder with the exact URL from GitHub and confirming the repository is correct.
 
 ## 4. API setup
+Before the API can work it needs the local database and its settings file — from the repository
+root run `npm ci`, `npm run db:start` and `npm run env:local` (see `LOCAL_DEVELOPMENT.md`).
 ```powershell
 cd apps\api
 py -3.12 -m venv .venv

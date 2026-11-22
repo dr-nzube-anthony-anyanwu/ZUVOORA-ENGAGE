@@ -656,6 +656,50 @@ export async function changeSubscription(
   return { ok: "Subscription updated. The clinic's data and widget are unchanged." };
 }
 
+/** Create a clinic and invite its owner (the API sends the invitation email). */
+export async function createClinic(_prev: ActionState, form: FormData): Promise<ActionState> {
+  let created: { tenant: { display_name: string }; owner_invited: boolean };
+  try {
+    const plan = text(form, "plan_key");
+    if (plan && !PLAN_KEY.test(plan)) throw new InvalidInput("invalid plan");
+    const displayName = text(form, "display_name");
+    created = await apiFetch(`/api/v1/platform/tenants`, {
+      method: "POST",
+      json: {
+        legal_name: text(form, "legal_name") ?? displayName,
+        display_name: displayName,
+        owner_email: text(form, "owner_email"),
+        plan_key: plan,
+      },
+    });
+  } catch (error) {
+    return failure(error);
+  }
+  revalidatePath("/platform");
+  return {
+    ok: created.owner_invited
+      ? `${created.tenant.display_name} created. The owner has been emailed an invitation.`
+      : `${created.tenant.display_name} created. The owner already had an account and can sign in now.`,
+  };
+}
+
+const CLINIC_STATUS_ACTIONS = ["reactivate", "suspend"] as const;
+
+/** Make a clinic live ("reactivate" also activates a new, pending clinic) or suspend it. */
+export async function setClinicStatus(
+  tenantId: string, action: string, _prev: ActionState, _form: FormData,
+): Promise<ActionState> {
+  try {
+    ids(tenantId);
+    const which = oneOf(action, CLINIC_STATUS_ACTIONS);
+    await apiFetch(`/api/v1/platform/tenants/${tenantId}/${which}`, { method: "POST" });
+  } catch (error) {
+    return failure(error);
+  }
+  revalidatePath("/platform");
+  return { ok: action === "suspend" ? "Clinic suspended. Its website chat is off." : "Clinic is active." };
+}
+
 export async function updatePlan(
   planKey: string, _prev: ActionState, form: FormData,
 ): Promise<ActionState> {

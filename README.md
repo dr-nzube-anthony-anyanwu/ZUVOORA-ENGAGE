@@ -13,7 +13,8 @@ conversation to the clinic team whenever a person is needed. Clinic staff manage
 web dashboard; ZubeVision manages clinics, plans and usage from a platform console.
 
 > **Status:** Phases 0–5 are complete and accepted (including Phase 3g, AI reading of scanned
-> documents). Phase 6 — production deployment, monitoring, backups, legal review and pilot
+> documents) and the design track (brand, public website, demo requests, restyled dashboard and
+> widget). Phase 6 — production deployment, monitoring, backups, legal review and pilot
 > onboarding — has **not** started. The system has not been deployed publicly and must not be
 > used with real patient data until Phase 6 is accepted.
 
@@ -65,9 +66,16 @@ web dashboard; ZubeVision manages clinics, plans and usage from a platform conso
 | Analytics | Conversations, answer sources, call-backs, bookings; daily trends, AI cost and unanswered topics on higher plans |
 | Plan & usage | Current plan, included features, monthly usage against limits |
 
+### Public website
+- Homepage telling the product story, with honest feature availability, a scripted demo
+  conversation, the four plans (pricing on request) and a roadmap of features still in development.
+- "Request a demo" form for clinics (business contact details only, spam-protected); an
+  accessibility statement. Checked automatically against WCAG 2.2 AA.
+
 ### For ZubeVision (platform console, MFA required)
 - Create and suspend clinics, assign plans and per-clinic overrides, edit the plan catalogue.
 - Platform overview: per-clinic usage, AI cost and estimated monthly revenue.
+- Demo requests from the public website (kept for 12 months).
 
 ### Background work (worker)
 - Durable Postgres job queue: booking confirmations and clinic alerts, 24-hour and optional
@@ -177,58 +185,97 @@ needed for development. **Use synthetic data only.**
 - Docker Desktop (running)
 - Git
 
-### 1. Local database and environment files (repository root)
-```powershell
-npm ci                 # installs the pinned Supabase CLI
-npm run db:start       # Postgres, Auth, Storage, Mailpit; applies migrations and the local seed
-npm run env:local      # writes apps/api/.env and apps/web/.env.local for the LOCAL stack only
-npm run db:test        # pgTAP tests
-```
-`env:local` refuses to target anything but localhost, never overwrites existing files and never
-prints keys. The first `db:start` downloads several GB of container images.
+### Start and stop (every day)
 
-### 2. API
-```powershell
-cd apps\api
-py -3.12 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -e ".[dev]"
-uvicorn app.main:app --reload --host 127.0.0.1 --port 8073
-```
-Optional, in another terminal: `python -m app.worker` (background jobs).
+After the [first-time setup](#first-time-setup) below, open **three PowerShell terminals**
+(in VS Code: Terminal → New Terminal) and run one block in each, in this order:
 
-### 3. Dashboard
+**Terminal 1 — database** (wait until it prints the local URLs)
 ```powershell
-cd apps\web
-npm ci
+cd D:\technologies\ZUVOORA-ENGAGE
+npm run db:start
+```
+
+**Terminal 2 — API / backend** (wait for `Application startup complete`)
+```powershell
+cd D:\technologies\ZUVOORA-ENGAGE\apps\api
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8073
+```
+
+**Terminal 3 — website and dashboard / frontend** (wait for `Ready`)
+```powershell
+cd D:\technologies\ZUVOORA-ENGAGE\apps\web
 npm run dev
 ```
 
-### 4. Widget (built into the API image; build locally when changing it)
+**Optional terminal 4 — background worker** (emails, reminders and alerts; locally emails are only
+logged)
 ```powershell
-cd apps\widget
-npm ci
-npm run build
+cd D:\technologies\ZUVOORA-ENGAGE\apps\api
+.\.venv\Scripts\python.exe -m app.worker
 ```
 
-### Local addresses
-| Service | URL |
-|---|---|
-| Dashboard | http://localhost:3073 |
-| API health | http://127.0.0.1:8073/health/ready |
-| Supabase Studio | http://127.0.0.1:54323 |
-| Mailpit (local emails) | http://127.0.0.1:54324 |
+Then open:
 
-### First sign-in
-Sign-up is disabled (invitation only). Create a user in local Studio, register it as a platform
-admin, sign in and enrol two-factor authentication at `/mfa`. Step-by-step instructions:
-[`docs/operations/LOCAL_DEVELOPMENT.md`](docs/operations/LOCAL_DEVELOPMENT.md).
+| What | Address |
+|---|---|
+| Public website | http://localhost:3073 |
+| Clinic and platform sign-in | http://localhost:3073/login |
+| API health | http://127.0.0.1:8073/health/ready |
+| Supabase Studio (local database) | http://127.0.0.1:54323 |
+| Mailpit (local emails, e.g. invitations) | http://127.0.0.1:54324 |
+
+**To stop:** press `Ctrl+C` in terminals 2, 3 and 4, then run `npm run db:stop` in terminal 1
+(your local data is kept for next time).
+
+If the drive letter of the SSD changes, replace `D:` in the paths. Troubleshooting (ports already
+in use, Docker not running, PowerShell script policy):
+[`docs/operations/LOCAL_DEVELOPMENT.md`](docs/operations/LOCAL_DEVELOPMENT.md#troubleshooting).
+
+### First-time setup
+
+Run once on a new machine (or after deleting `.venv` / `node_modules`).
+
+1. **Database and local settings** (repository root)
+   ```powershell
+   cd D:\technologies\ZUVOORA-ENGAGE
+   npm ci                 # installs the pinned Supabase CLI
+   npm run db:start       # Postgres, Auth, Storage, Mailpit; applies migrations and the local seed
+   npm run env:local      # writes apps/api/.env and apps/web/.env.local for the LOCAL stack only
+   ```
+   `env:local` refuses to target anything but localhost, never overwrites existing files and never
+   prints keys. The first `db:start` downloads several GB of container images.
+2. **API**
+   ```powershell
+   cd apps\api
+   py -3.12 -m venv .venv
+   .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+   ```
+3. **Website and dashboard**
+   ```powershell
+   cd ..\web
+   npm ci
+   ```
+4. **Chat widget** (served by the API; rebuild after changing `apps/widget`)
+   ```powershell
+   cd ..\widget
+   npm ci
+   npm run build
+   ```
+5. **First sign-in.** Sign-up is disabled (invitation only). Create a user in local Studio,
+   register it as a platform admin, sign in and enrol two-factor authentication at `/mfa` — see
+   [`docs/operations/LOCAL_DEVELOPMENT.md`](docs/operations/LOCAL_DEVELOPMENT.md#4-create-a-local-platform-admin-to-try-the-dashboard).
+
+### Demonstrating the product
+To show the whole product to clinics (public website, patient chat on a sample clinic website,
+booking, inbox, dashboard and platform console), follow the step-by-step
+[**Demo guide**](docs/operations/DEMO_GUIDE.md). Two helper commands prepare a local demo:
+`npm run demo:setup` (sample clinic and demo accounts) and `npm run demo:site` (sample clinic website).
 
 ### Docker Compose
 `docker-compose.yml` builds the API, dashboard and worker images (all run as non-root users). It
 needs a root `.env` created from `.env.example` with values for the target environment. Production
 deployment (reverse proxy, HTTPS, hardening, backups) is Phase 6 work and not yet in this repository.
-
 ## Configuration
 
 All configuration is through environment variables. [`.env.example`](.env.example) lists every
@@ -254,9 +301,9 @@ The dashboard receives only browser-safe values (`NEXT_PUBLIC_SUPABASE_URL`,
 
 | Suite | Command | Scope | Current result* |
 |---|---|---|---|
-| Database (pgTAP) | `npm run db:test` | Roles, RLS and cross-tenant denial, audit immutability, content publishing, domains, documents, widget access, retrieval, jobs, scheduling, bookings, webhooks, plans, usage metering, document AI | 401 / 401 |
-| API (pytest) | `cd apps/api; pytest` | Unit tests (JWT verification, extraction with malicious samples, AI guard and routing, providers, encryption, webhooks, vision) and integration tests through the real API and local Supabase | 512 passed, 2 skipped (Linux-only) |
-| End-to-end (Playwright) | `cd apps/web; npm run build; npm run test:e2e` | Real browser → dashboard → API → database, with local fakes for Cal.com and OpenRouter and two test "clinic websites" for cross-site embedding | 13 / 13 |
+| Database (pgTAP) | `npm run db:test` | Roles, RLS and cross-tenant denial, audit immutability, content publishing, domains, documents, widget access, retrieval, jobs, scheduling, bookings, webhooks, plans, usage metering, document AI, demo requests | 416 / 416 |
+| API (pytest) | `cd apps/api; pytest` | Unit tests (JWT verification, extraction with malicious samples, AI guard and routing, providers, encryption, webhooks, vision) and integration tests through the real API and local Supabase | 527 passed, 2 skipped (Linux-only) |
+| End-to-end (Playwright) | `cd apps/web; npm run build; npm run test:e2e` | Real browser → dashboard → API → database, with local fakes for Cal.com and OpenRouter and two test "clinic websites" for cross-site embedding; axe WCAG 2.2 AA checks on public pages, dashboard and widget | 20 / 20 |
 | AI evaluation | `pytest tests/integration/test_evaluation.py` (hostile-model mode, part of every run and CI; the capped live mode runs only with `EVAL_LIVE=1` and a dedicated key) | 46 synthetic cases: emergency, medical-advice safety, prompt injection, tenant isolation, answer quality | 100% in the safety categories; 93.8% quality (live run) |
 | Lint / types | `ruff check .`, `npm run lint`, `npm run typecheck` | | clean |
 | Secret leakage | `npm run check:bundle` | Fails the build if a server secret reaches browser files | pass |
@@ -373,10 +420,11 @@ integration, online payments.
 | Topic | Document |
 |---|---|
 | Start here (Windows) | [`docs/operations/START_HERE_WINDOWS.md`](docs/operations/START_HERE_WINDOWS.md) |
+| **Demo guide (step by step, end to end)** | [`docs/operations/DEMO_GUIDE.md`](docs/operations/DEMO_GUIDE.md) |
 | Local development | [`docs/operations/LOCAL_DEVELOPMENT.md`](docs/operations/LOCAL_DEVELOPMENT.md) |
 | Implementation tracker and evidence | [`docs/operations/IMPLEMENTATION.md`](docs/operations/IMPLEMENTATION.md) |
 | Phased plan | [`docs/operations/PHASED_IMPLEMENTATION_PLAN.md`](docs/operations/PHASED_IMPLEMENTATION_PLAN.md) |
-| Architecture decisions (ADR-001 – ADR-041) | [`docs/decisions/DECISION_LOG.md`](docs/decisions/DECISION_LOG.md) |
+| Architecture decisions (ADR-001 – ADR-042) | [`docs/decisions/DECISION_LOG.md`](docs/decisions/DECISION_LOG.md) |
 | Product requirements | [`docs/product/PRD.md`](docs/product/PRD.md), [`docs/product/PRD_FULL.md`](docs/product/PRD_FULL.md) |
 | Architecture and security design | [`docs/architecture/`](docs/architecture/) |
 | Tenancy, authorisation and RLS | [`docs/security/TENANCY_AND_RLS.md`](docs/security/TENANCY_AND_RLS.md) |
@@ -385,6 +433,8 @@ integration, online payments.
 | Cloud database setup | [`docs/operations/SUPABASE_CLOUD_SETUP.md`](docs/operations/SUPABASE_CLOUD_SETUP.md) |
 | Provider setup checklist | [`docs/operations/PROVIDER_SETUP_CHECKLIST.md`](docs/operations/PROVIDER_SETUP_CHECKLIST.md) |
 | AI evaluation report | [`docs/evaluations/PHASE3_LIVE_EVALUATION_2026-11-22.md`](docs/evaluations/PHASE3_LIVE_EVALUATION_2026-11-22.md) |
+| Design system, brand and logo | [`docs/design/DESIGN_SYSTEM.md`](docs/design/DESIGN_SYSTEM.md), [`docs/brand/`](docs/brand/) |
+| Homepage content and claims | [`docs/design/HOMEPAGE_CONTENT.md`](docs/design/HOMEPAGE_CONTENT.md) |
 | Commercial strategy | [`docs/commercial/`](docs/commercial/) |
 | Build prompts | [`prompts/MASTER_BUILDER_PROMPT.md`](prompts/MASTER_BUILDER_PROMPT.md), [`CLAUDE.md`](CLAUDE.md) |
 

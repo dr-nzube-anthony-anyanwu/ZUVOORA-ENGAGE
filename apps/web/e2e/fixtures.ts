@@ -170,6 +170,9 @@ export async function removeFixtures(fixtures: E2EFixtures): Promise<void> {
     objects = stored.rows.map((row) => row.name as string);
     await db.query("delete from public.tenants where id = any($1)", [[fixtures.tenantA, fixtures.tenantB]]);
     await db.query("delete from public.platform_admins where user_id = $1", [fixtures.platformAdmin.id]);
+    // A clinic created through the platform console during this run, and its invited owner.
+    await db.query("delete from public.tenants where display_name = $1", [`E2E Created Clinic ${fixtures.runId}`]);
+    await db.query("delete from auth.users where email = $1", [`e2e.created-owner.${fixtures.runId}@example.com`]);
     // Demo requests submitted from the public website during this run (synthetic addresses).
     await db.query("delete from public.demo_requests where email like $1", [`%.${fixtures.runId}@example.com`]);
   } finally {
