@@ -75,6 +75,11 @@ class Settings(BaseSettings):
     # "@domain" entries, comma-separated. Empty = nobody (everything suppressed).
     email_allowed_recipients: str = ""
     worker_poll_seconds: float = Field(default=5.0, ge=0.5, le=300)
+    # ZubeVision inbox notified of new demo requests from the public website (no contact
+    # details are included in the email). Unset = no notification; requests are still stored.
+    demo_request_notify_email: str | None = Field(
+        default=None, max_length=254, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
+    )
 
     # Public widget (Phase 3b). The token secret signs frame tickets and conversation tokens.
     widget_token_secret: SecretStr | None = None
@@ -101,6 +106,11 @@ class Settings(BaseSettings):
     @classmethod
     def strip_trailing_slash(cls, value: str | None) -> str | None:
         return value.rstrip("/") if value else value
+
+    @field_validator("demo_request_notify_email", mode="before")
+    @classmethod
+    def blank_is_unset(cls, value: object) -> object:
+        return None if isinstance(value, str) and not value.strip() else value
 
     @field_validator("openrouter_api_key")
     @classmethod

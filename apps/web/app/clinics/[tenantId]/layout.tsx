@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Wordmark } from "@/components/marketing/Wordmark";
 import type { ReactNode } from "react";
 import { apiGet, tenantPath } from "@/lib/api";
 import { loadClinic } from "@/lib/clinic";
@@ -37,7 +38,7 @@ export default async function ClinicLayout({
   return (
     <div className="shell">
       <aside className="sidebar">
-        <Link href="/dashboard" className="brand">ZUVOORA ENGAGE</Link>
+        <Link href="/dashboard" className="sidebar-logo"><Wordmark size="sm" alt="ZUVOORA Engage — your clinics" /></Link>
         <div className="clinic-name">{clinic.tenant.display_name}</div>
         <div className="muted small">{ROLE_LABEL[clinic.my_role]}</div>
         <nav aria-label="Clinic sections">

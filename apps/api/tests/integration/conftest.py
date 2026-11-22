@@ -284,7 +284,8 @@ def world(client, gotrue, admin_db) -> World:
 @pytest.fixture(autouse=True)
 def generous_widget_rate_limits(monkeypatch):
     """All test requests share one client IP; tests that check limits set their own values."""
-    from app.routes import widget_public
+    from app.routes import demo_requests, widget_public
 
-    for kind, (window, _) in list(widget_public.LIMITS.items()):
-        monkeypatch.setitem(widget_public.LIMITS, kind, (window, 100_000))
+    for limits in (widget_public.LIMITS, demo_requests.LIMITS):
+        for kind, (window, _) in list(limits.items()):
+            monkeypatch.setitem(limits, kind, (window, 100_000))

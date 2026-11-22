@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import { AuthShell } from "@/components/AuthShell";
 import { createClient } from "@/lib/supabase/client";
 
 export default function SetPasswordPage() {
@@ -30,23 +31,24 @@ export default function SetPasswordPage() {
   }
 
   return (
-    <main className="narrow">
-      <div className="brand">ZUVOORA ENGAGE</div>
-      <h1>Set your password</h1>
-      <section className="panel">
-        <form onSubmit={onSubmit} className="form">
-          <label>
-            New password
-            <input name="password" type="password" autoComplete="new-password" required minLength={12} />
-          </label>
-          <label>
-            Confirm password
-            <input name="confirm" type="password" autoComplete="new-password" required minLength={12} />
-          </label>
-          {error && <p role="alert" className="error">{error}</p>}
-          <button type="submit" disabled={busy}>{busy ? "Saving…" : "Save password"}</button>
-        </form>
-      </section>
-    </main>
+    <AuthShell
+      title="Set your password"
+      intro="Use at least 12 characters, with upper- and lower-case letters and a number."
+      asideTitle="Welcome to ZUVOORA Engage."
+      asideText="You've been invited to your clinic's workspace. Set a password to get started."
+    >
+      <form onSubmit={onSubmit} className="form">
+        <label>
+          New password
+          <input name="password" type="password" autoComplete="new-password" required minLength={12} />
+        </label>
+        <label>
+          Confirm password
+          <input name="confirm" type="password" autoComplete="new-password" required minLength={12} />
+        </label>
+        {error && <p role="alert" className="error">{error}</p>}
+        <button type="submit" disabled={busy}>{busy ? "Saving…" : "Save password"}</button>
+      </form>
+    </AuthShell>
   );
 }

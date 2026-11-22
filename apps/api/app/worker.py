@@ -191,7 +191,27 @@ def quota_alert(conn: psycopg.Connection, job: dict, settings: Settings) -> Emai
     )
 
 
+def demo_request_alert(conn: psycopg.Connection, job: dict, settings: Settings) -> Email | Skip:
+    """Tell ZubeVision about a new demo request (no contact details in the email)."""
+    recipient = settings.demo_request_notify_email
+    if not recipient:
+        return Skip("no notification address configured")
+    row = conn.execute(
+        "select clinic_name, city, country, interest, created_at, status "
+        "from app_private.job_demo_request(%s)",
+        (job["payload"].get("request_id"),),
+    ).fetchone()
+    if row is None:
+        return Skip("request removed")
+    place = ", ".join(p for p in (row["city"], row["country"]) if p)
+    return email_templates.demo_request_alert(
+        (recipient,), row["clinic_name"], place, row["interest"], row["created_at"],
+        f"{settings.dashboard_url}/platform/demo-requests",
+    )
+
+
 HANDLERS: dict[str, Handler] = {
+    "demo_request_alert": demo_request_alert,
     "quota_alert": quota_alert,
     "handover_alert": handover_alert,
     "domain_lapsed": domain_lapsed,
@@ -326,8 +346,11 @@ def _fail(db: Database, job_id: int, error: str, permanent: bool) -> str:
 
 
 def purge(db: Database) -> int:
+    """Remove finished jobs past their retention, and demo requests older than 12 months."""
     with db.jobs_transaction() as conn:
-        return conn.execute("select app_private.purge_finished_jobs() as n").fetchone()["n"]
+        jobs = conn.execute("select app_private.purge_finished_jobs() as n").fetchone()["n"]
+        conn.execute("select app_private.purge_demo_requests()")
+        return jobs
 
 
 def main(argv: list[str] | None = None) -> int:

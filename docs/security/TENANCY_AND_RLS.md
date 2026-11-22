@@ -228,6 +228,17 @@ all members read, owners/admins (and MFA platform admins) write; no DELETE (arch
 - `knowledge_document_versions.extraction_method` (`text` | `vision`) is immutable like the rest
   of a version; a photo (`detected_type = image`) must be `vision`.
 
+## Demo requests from the public website (ADR-042)
+
+- `public.demo_requests` is not tenant data. Forced RLS: only an MFA platform admin
+  (`is_platform_admin()`) can select rows or update `status`; every other field is immutable;
+  no role may delete (the worker's `purge_demo_requests()` removes rows after 12 months).
+- Anonymous visitors insert only through `app_private.submit_demo_request()` (granted to
+  `engage_widget`), which refuses calls made inside a clinic's chat session or by a signed-in
+  user, and queues one notification job. Visitors can never read anything back.
+- The worker reads only clinic name, place and interest (`job_demo_request()`); contact details
+  never leave the platform console.
+
 ## Adding a tenant-owned table (checklist)
 1. `tenant_id uuid not null references public.tenants(id)`.
 2. `enable` + `force row level security`.

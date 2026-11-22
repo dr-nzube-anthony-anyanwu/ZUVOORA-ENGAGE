@@ -11,14 +11,16 @@ from app.services.email import Email
 FOOTER = "ZUVOORA Engage — sent to clinic staff. Please do not reply to this email."
 
 
-def _html(paragraphs: list[str], link: tuple[str, str] | None = None) -> str:
+def _html(
+    paragraphs: list[str], link: tuple[str, str] | None = None, footer: str = FOOTER
+) -> str:
     body = "".join(f"<p>{escape(p)}</p>" for p in paragraphs)
     if link:
         label, url = link
         body += f'<p><a href="{escape(url, quote=True)}">{escape(label)}</a></p>'
     return (
         '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;'
-        f'color:#203040">{body}<p style="color:#607080;font-size:12px">{escape(FOOTER)}</p></div>'
+        f'color:#203040">{body}<p style="color:#607080;font-size:12px">{escape(footer)}</p></div>'
     )
 
 
@@ -221,4 +223,32 @@ def quota_alert(
         subject=f"{clinic}: {threshold}% of monthly {label} used",
         text="\n\n".join([*lines, f"Plan & usage: {plan_url}", FOOTER]),
         html=_html(lines, ("Open Plan & usage", plan_url)),
+    )
+
+
+INTERNAL_FOOTER = "ZUVOORA Engage — internal notification for ZubeVision."
+
+INTEREST_LABEL = {
+    "demo": "a demo", "pilot": "the pilot programme", "pricing": "pricing",
+    "accessibility": "accessibility feedback", "other": "something else",
+}
+
+
+def demo_request_alert(
+    to: tuple[str, ...], clinic: str, place: str, interest: str, received_at: datetime,
+    console_url: str,
+) -> Email:
+    """Internal ZubeVision notice. Contact details stay in the platform console."""
+    where = f" ({place})" if place else ""
+    lines = [
+        f"New request from {clinic}{where} about {INTEREST_LABEL.get(interest, interest)}, "
+        f"received {_local(received_at, 'Africa/Lagos')}.",
+        "Contact details are in the platform console. For privacy, they are not included in "
+        "this email.",
+    ]
+    return Email(
+        to=to,
+        subject=f"New ZUVOORA Engage request: {clinic}",
+        text="\n\n".join([*lines, f"Platform console: {console_url}", INTERNAL_FOOTER]),
+        html=_html(lines, ("Open demo requests", console_url), INTERNAL_FOOTER),
     )

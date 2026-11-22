@@ -351,3 +351,20 @@ export const LIMIT_LABELS: Record<string, string> = {
 
 /** Result of a Server Action, shown next to the form that submitted it. */
 export type ActionState = { ok?: string; error?: string; details?: string[] } | null;
+
+/** A request from the public website (platform console only). */
+export type DemoRequest = {
+  id: string;
+  name: string;
+  role: string | null;
+  clinic_name: string;
+  city: string | null;
+  country: string | null;
+  email: string;
+  phone: string | null;
+  interest: "demo" | "pilot" | "pricing" | "accessibility" | "other";
+  message: string | null;
+  status: "new" | "contacted" | "closed";
+  created_at: string;
+  updated_at: string;
+};

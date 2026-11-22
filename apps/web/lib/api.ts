@@ -107,6 +107,36 @@ export async function apiFetch<T>(
   return (await response.json()) as T;
 }
 
+/**
+ * Anonymous POST to one of the API's public endpoints (no user token). `clientIp` is forwarded as
+ * X-Forwarded-For; the API trusts it only when its proxy settings list this server (Phase 6).
+ */
+export async function publicPost(path: string, json: unknown, clientIp?: string): Promise<void> {
+  if (!/^\/api\/v1\/public\/[a-z0-9/-]+$/.test(path)) {
+    throw new ApiRequestError(404, "not_found", "Not found.");
+  }
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (clientIp) headers["X-Forwarded-For"] = clientIp;
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      method: "POST", headers, body: JSON.stringify(json), cache: "no-store",
+    });
+  } catch {
+    throw new ApiRequestError(503, "api_unreachable", "The service is unavailable. Please try again later.");
+  }
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    const error = payload?.error ?? {};
+    throw new ApiRequestError(
+      response.status,
+      error.code ?? "unknown_error",
+      typeof error.message === "string" ? error.message : "The request could not be completed.",
+      Array.isArray(error.details) ? error.details.map(readableDetail) : [],
+    );
+  }
+}
+
 export function apiGet<T>(path: string): Promise<T> {
   return apiFetch<T>(path);
 }

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Wordmark } from "@/components/marketing/Wordmark";
 import { redirect } from "next/navigation";
 import { apiGet, ApiRequestError, type Me } from "@/lib/api";
 
@@ -30,7 +31,7 @@ export default async function DashboardPage() {
   return (
     <main>
       <div className="topbar">
-        <div className="brand">ZUVOORA ENGAGE</div>
+        <Wordmark size="sm" />
         <form action="/auth/signout" method="post">
           <button type="submit" className="link-button">Sign out</button>
         </form>

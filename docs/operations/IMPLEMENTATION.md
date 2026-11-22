@@ -138,6 +138,16 @@ Founder decisions (2026-11-22): four plans — Essentials, Professional, Premium
 
 - **Phase 5 accepted by founder** (2026-11-22).
 
+## Design track — brand, public website and demo requests (2026-11-22)
+Separate from Phase 6. Brief tailored from the founder's research: `prompts/DESIGN_UI_UX_BRIEF.md`. Founder decisions: no public prices; secure demo-request feature approved; no founder section yet; official logo supplied the same day.
+
+- [x] D1. Design system and public homepage (ADR-042): tokens and typography in `app/globals.css` (Plus Jakarta Sans + Inter self-hosted with `next/font`; CSP unchanged), official logo (`docs/brand/` → cropped `public/brand/*`, browser icons from the eye symbol), palette sampled from the logo and contrast-checked (`docs/design/DESIGN_SYSTEM.md`). `(marketing)` route group: homepage (story, challenge, solution, audience, six alternating feature rows with labelled illustrative previews, value, accessible FAQ accordion, three steps, scripted demo with no AI call, four-plan comparison without prices, roadmap with "Coming soon", responsibility, pilot invitation, final call to action, footer with existing pages only) and `/accessibility` statement. Every claim mapped to a live capability (`docs/design/HOMEPAGE_CONTENT.md`). Fixed during review: plan-table hidden labels widened the page by 285 px on phones; logo link name mismatch found by axe.
+- [x] D2. Sign-in, two-factor and set-password pages restyled with a shared `AuthShell` (logic, labels and redirects unchanged); dashboard and platform sidebars show the logo.
+- [x] D3. Demo requests (ADR-042): migration `20261130000001_demo_requests.sql` (`demo_requests` with forced RLS — MFA platform admins only, details immutable, 12-month purge; `submit_demo_request()` for the public role, refused inside a clinic chat session or for signed-in users; `demo_request_alert` job; `job_demo_request()` returns no contact details). API `POST /api/v1/public/demo-requests` (minimal fields, honeypot, rate limits per forwarded IP/email/global) and `GET/PATCH /api/v1/platform/demo-requests` (audited). Web `/request-demo` (Server Action; consent; no health information) and platform console "Demo requests". Setting `DEMO_REQUEST_NOTIFY_EMAIL` (blank = unset). Tests: pgTAP 15 new (`16_demo_requests`); 13 API integration + 2 unit tests; Playwright 5 new in `marketing.spec.ts` (axe WCAG 2.2 AA on home, demo request, accessibility, sign-in; keyboard accordion; scripted demo; 375 px with no sideways scroll; request travels to the MFA console, invisible to a clinic owner).
+- Verification before the logo change: pytest 527 passed + 2 skipped (529); pgTAP 416/416 (16 files); Playwright 18/18; Ruff, ESLint, TypeScript, build, bundle-secret scan clean; Semgrep 0 findings (258 rules, 234 files); gitleaks only the reviewed false positive. New dev dependency: `@axe-core/playwright` 4.14.0 (MPL-2.0, test-only).
+- After the official logo and colours: ESLint, TypeScript, build and bundle-secret scan clean; Playwright 18/18 including all axe checks; header logo 212×51 px desktop / 176×43 px mobile; no sideways scrolling at 375 px.
+- Not done yet (D4–D5): restyle of the remaining dashboard pages and the chat widget with the new tokens; genuine product screenshots; Lighthouse/Core Web Vitals measurement; founder section; privacy notice and terms (Phase 6 legal review).
+
 ## Phase 6 — not started
 Brief: `prompts/phases/PHASE_6_HARDENING_DEPLOYMENT_PILOT.md`. Started on 2026-11-22 and deferred
 by the founder before any decision or change; the founder's decisions on hosting, domain,
@@ -149,6 +159,8 @@ Environments and deployment
 - [ ] Reverse proxy with HTTPS and security headers; dashboard and API on their own subdomains.
 - [ ] Deployment and rollback procedure; secrets in a protected store (never in images or the repository).
 - [ ] Worker and the daily domain re-verification job running as services; job-queue health visible.
+- [ ] Real visitor IP for rate limits: run uvicorn with `--proxy-headers` and `--forwarded-allow-ips` limited to the reverse proxy and the dashboard server (the dashboard forwards the visitor address for demo requests).
+- [ ] Set `DEMO_REQUEST_NOTIFY_EMAIL`; publish a reviewed privacy notice and terms and link them from the public footer and the demo form.
 - [ ] Migrate to Supabase `sb_publishable_` / `sb_secret_` keys and revoke legacy JWT keys.
 
 Monitoring, backups and recovery

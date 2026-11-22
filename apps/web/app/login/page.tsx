@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import { AuthShell } from "@/components/AuthShell";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
@@ -31,24 +33,28 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="narrow">
-      <div className="brand">ZUBEVISION TECHNOLOGIES LTD.</div>
-      <h1>Sign in</h1>
-      <section className="panel">
-        <form onSubmit={onSubmit} className="form">
-          <label>
-            Email
-            <input name="email" type="email" autoComplete="email" required maxLength={254} />
-          </label>
-          <label>
-            Password
-            <input name="password" type="password" autoComplete="current-password" required minLength={12} />
-          </label>
-          {error && <p role="alert" className="error">{error}</p>}
-          <button type="submit" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
-        </form>
-        <p className="hint">Accounts are created by invitation from your clinic or ZubeVision.</p>
-      </section>
-    </main>
+    <AuthShell
+      title="Sign in"
+      intro="Your clinic's engagement workspace is ready when you are."
+      asideTitle="Welcome back to better patient conversations."
+      asideText="Answer enquiries, follow up call-back requests and keep your clinic's information up to date — all in one place."
+    >
+      <form onSubmit={onSubmit} className="form">
+        <label>
+          Email
+          <input name="email" type="email" autoComplete="email" required maxLength={254} />
+        </label>
+        <label>
+          Password
+          <input name="password" type="password" autoComplete="current-password" required minLength={12} />
+        </label>
+        {error && <p role="alert" className="error">{error}</p>}
+        <button type="submit" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
+      </form>
+      <p className="auth-note">
+        Accounts are created by invitation from your clinic or ZubeVision. New to Engage?{" "}
+        <Link href="/request-demo">Request a demo</Link>.
+      </p>
+    </AuthShell>
   );
 }

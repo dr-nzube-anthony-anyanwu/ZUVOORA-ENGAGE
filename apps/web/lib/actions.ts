@@ -680,3 +680,20 @@ export async function updatePlan(
   revalidatePath("/platform");
   return { ok: "Plan saved." };
 }
+
+// ----- demo requests (design track D3; MFA platform admins only — enforced by the API) ---------
+const DEMO_STATUSES = ["new", "contacted", "closed"] as const;
+
+export async function updateDemoRequest(
+  requestId: string, _prev: ActionState, form: FormData,
+): Promise<ActionState> {
+  try {
+    ids(requestId);
+    const status = oneOf(form.get("status"), DEMO_STATUSES);
+    await apiFetch(`/api/v1/platform/demo-requests/${requestId}`, { method: "PATCH", json: { status } });
+  } catch (error) {
+    return failure(error);
+  }
+  revalidatePath("/platform/demo-requests");
+  return { ok: "Status saved." };
+}
