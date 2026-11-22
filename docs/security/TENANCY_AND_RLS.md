@@ -1,4 +1,4 @@
-# Tenancy, Authorisation and RLS (Phase 1)
+# Tenancy, Authorisation and RLS (Phase 1, extended through Phase 5)
 
 Source of truth: `supabase/migrations/20261120000001_tenant_foundation.sql`.
 Verified by: `supabase/tests/01_tenant_rls.test.sql` (pgTAP) and
@@ -186,6 +186,36 @@ all members read, owners/admins (and MFA platform admins) write; no DELETE (arch
   or to that active clinic's widget. Owners/admins connect, choose appointment types and
   disconnect; disconnecting erases the ciphertext. The widget sees only enabled appointment
   types of an active connection, and only `id, tenant_id, provider, status` of the connection.
+
+## Plans, entitlements, usage and analytics (Phase 5, ADR-038 to ADR-040)
+
+- **Catalogue** (`features`, `plans`, `plan_features`, `plan_limits`): readable by all staff;
+  insert/update/delete only when `app_private.is_platform_admin()` (MFA platform admin), with
+  column-level grants. Not tenant data, so no `tenant_id`.
+- **Subscriptions and overrides** (`tenant_subscriptions`, `tenant_overrides`): readable by that
+  clinic's owner/admin and platform admins; written only by MFA platform admins; every change audited
+  (`subscription.changed`, `subscription.override_set`, `subscription.override_removed`). A subscription row is created by
+  trigger with every clinic. Changing a plan never touches clinic data, the widget key or content
+  (acceptance test `test_any_plan_change_keeps_identity_data_and_widget`).
+- **One entitlement decision**: `app_private.entitlements_internal(tenant)` (plan features + limits,
+  overrides applied; cancelled = no features). Exposed only through wrappers that check the caller:
+  `tenant_entitlements()` (staff of that clinic, `engage_app`), `widget_has_feature()` /
+  `widget_limit()` (the clinic bound to the widget transaction, `engage_widget`). The API calls
+  `app/services/entitlements.py` on every gated route; the dashboard hiding a button is never the gate.
+  Reminders are also gated inside the database (no reminder job outside the plan).
+- **Gates refused on direct API calls (tested)**: booking (staff scheduling routes, widget options,
+  slots, book, frame-config flag), reminders, AI answers, analytics; plan limits on domains, documents,
+  staff seats (checked before any invitation is sent) and branches.
+- **Usage counters** (`app_private.usage_counters`): no grants to any role. Written only by
+  `app_private.meter()` from database triggers (visitor messages, AI usage rows, first booking
+  confirmation, real email sends in `complete_job`), so the API cannot under-report. Read only through
+  `tenant_usage()` (owner/admin) and `widget_quota_reached()` (widget, yes/no only). Quota alerts are
+  jobs keyed per clinic/metric/month/threshold, so each fires once.
+- **Analytics** are computed under the caller's RLS (owner/admin of that clinic) and return counts
+  only; unanswered topics are keyword counts shown only when asked at least twice — no transcripts.
+  `platform_overview()` returns rows only to an MFA platform admin and contains counts and amounts,
+  never conversation or patient content.
+
 ## Adding a tenant-owned table (checklist)
 1. `tenant_id uuid not null references public.tenants(id)`.
 2. `enable` + `force row level security`.
