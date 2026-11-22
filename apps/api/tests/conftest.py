@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import os
 from collections.abc import Callable, Iterator
 from typing import Any
@@ -12,6 +13,9 @@ import pytest
 # app (and its settings) load. AI tests inject a FakeGateway explicitly.
 os.environ["AI_ENABLED"] = "false"
 os.environ["OPENROUTER_API_KEY"] = ""
+# A random per-run key for third-party credential encryption; never a real deployment key.
+os.environ["INTEGRATIONS_ENCRYPTION_KEY"] = base64.urlsafe_b64encode(os.urandom(32)).decode()
+os.environ["EMAIL_DELIVERY"] = "log"
 
 from app.main import app  # noqa: E402
 

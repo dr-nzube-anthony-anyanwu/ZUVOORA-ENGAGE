@@ -26,6 +26,7 @@ from app.config import Settings
 from app.db import Database
 from app.main import app
 from app.security.jwt import TokenVerifier
+from app.services.secrets_box import SecretsBox, generate_key
 from app.services.storage import SupabaseObjectStore
 from app.services.supabase_admin import SupabaseAuthAdmin
 from app.services.widget_tokens import WidgetTokens
@@ -87,6 +88,7 @@ def client(stack):
     app.state.db = db
     app.state.object_store = SupabaseObjectStore(settings)
     app.state.widget_tokens = WidgetTokens(secrets.token_urlsafe(48))
+    app.state.secrets_box = SecretsBox(generate_key())  # random per run
     try:
         yield TestClient(app)
     finally:
@@ -94,6 +96,7 @@ def client(stack):
         app.state.verifier = app.state.auth_admin = app.state.db = None
         app.state.object_store = None
         app.state.widget_tokens = None
+        app.state.secrets_box = None
 
 
 @dataclass

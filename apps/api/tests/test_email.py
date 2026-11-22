@@ -121,6 +121,7 @@ def test_sender_selection():
         supabase_secret_key="s",
         database_url="postgresql://x",
         widget_token_secret="w" * 40,
+        integrations_encryption_key="A" * 43,
     )
     assert isinstance(build_sender(prod), ResendSender)
 

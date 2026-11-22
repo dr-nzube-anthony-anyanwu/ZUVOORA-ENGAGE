@@ -202,5 +202,41 @@ export function canHandleInbox(role: Role): boolean {
   return role === "owner" || role === "admin" || role === "receptionist";
 }
 
+export type SchedulingConnection = {
+  id: string;
+  provider: "calcom" | "calendly";
+  status: "active" | "failing";
+  account_label: string | null;
+  account_time_zone: string | null;
+  credential_hint: string | null;
+  connected_at: string;
+  last_verified_at: string | null;
+  last_error: string | null;
+};
+
+export type AppointmentType = {
+  id: string;
+  provider_event_type_id: string;
+  name: string;
+  duration_minutes: number;
+  requires_confirmation: boolean;
+  enabled: boolean;
+  sort_order: number;
+};
+
+export type SchedulingSettings = {
+  connection: SchedulingConnection | null;
+  appointment_types: AppointmentType[];
+};
+
+export type ProviderEventType = {
+  id: string;
+  name: string;
+  duration_minutes: number;
+  requires_confirmation: boolean;
+  hidden: boolean;
+  offered: boolean;
+};
+
 /** Result of a Server Action, shown next to the form that submitted it. */
 export type ActionState = { ok?: string; error?: string; details?: string[] } | null;

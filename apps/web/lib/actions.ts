@@ -498,3 +498,65 @@ export async function closeConversation(
   refresh(tenantId);
   return { ok: "Conversation closed. The visitor can start a new one by reloading the page." };
 }
+
+// ----- scheduling (Phase 4b) --------------------------------------------------------------------
+const PROVIDER_EVENT_TYPE_ID = /^[A-Za-z0-9_.:/-]{1,200}$/;
+
+export async function connectScheduling(
+  tenantId: string, _prev: ActionState, form: FormData,
+): Promise<ActionState> {
+  try {
+    ids(tenantId);
+    const apiKey = form.get("api_key");
+    if (typeof apiKey !== "string" || apiKey.trim().length < 10) {
+      throw new UserInputError("Paste the API key from your Cal.com settings.");
+    }
+    // The key goes straight to the API, which verifies, encrypts and stores it. It is never
+    // logged, returned or kept in the dashboard.
+    await apiFetch(tenantPath(tenantId, "scheduling", "connect"), {
+      method: "POST", json: { provider: "calcom", api_key: apiKey.trim() },
+    });
+  } catch (error) {
+    return failure(error);
+  }
+  refresh(tenantId);
+  return { ok: "Cal.com connected. Now choose which appointment types patients can book." };
+}
+
+export async function disconnectScheduling(
+  tenantId: string, _prev: ActionState,
+): Promise<ActionState> {
+  try {
+    ids(tenantId);
+    await apiFetch(tenantPath(tenantId, "scheduling", "disconnect"), { method: "POST" });
+  } catch (error) {
+    return failure(error);
+  }
+  refresh(tenantId);
+  return { ok: "Disconnected. You can also delete the API key in Cal.com." };
+}
+
+export async function saveAppointmentTypes(
+  tenantId: string, _prev: ActionState, form: FormData,
+): Promise<ActionState> {
+  try {
+    ids(tenantId);
+    const items = form.getAll("type_id").map((raw) => {
+      if (typeof raw !== "string" || !PROVIDER_EVENT_TYPE_ID.test(raw)) {
+        throw new InvalidInput("invalid appointment type");
+      }
+      return {
+        provider_event_type_id: raw,
+        name: text(form, `name:${raw}`),
+        enabled: form.get(`offer:${raw}`) === "on",
+      };
+    }).filter((item) => item.enabled);
+    await apiFetch(tenantPath(tenantId, "scheduling", "appointment-types"), {
+      method: "PUT", json: { items },
+    });
+  } catch (error) {
+    return failure(error);
+  }
+  refresh(tenantId);
+  return { ok: "Appointment types saved." };
+}

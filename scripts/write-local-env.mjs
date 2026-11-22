@@ -49,6 +49,8 @@ const files = {
     `DATABASE_URL=postgresql://engage_api:local-dev-only-engage-api@${dbHost}`,
     `WIDGET_TOKEN_SECRET=${randomBytes(48).toString("base64url")}`,
     "WIDGET_ALLOW_HTTP_FRAMES=true",
+    `INTEGRATIONS_ENCRYPTION_KEY=${randomBytes(32).toString("base64url")}`,
+    "EMAIL_DELIVERY=log",
     "",
   ],
   [join(ROOT, "apps", "web", ".env.local")]: [

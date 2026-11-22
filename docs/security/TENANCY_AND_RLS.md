@@ -174,6 +174,18 @@ all members read, owners/admins (and MFA platform admins) write; no DELETE (arch
 - **Retention:** messages and the usage ledger are immutable and undeletable by application
   roles; only the database owner can delete (tenant deletion, lawful deletion/retention jobs).
 
+## Background jobs (Phase 4a, ADR-033) and scheduling credentials (Phase 4b, ADR-034)
+
+- `app_private.jobs` has no grants to any application role. Jobs are enqueued by the database in
+  the same transaction as their cause; the worker role `engage_jobs` (NOLOGIN, no table access)
+  only executes `claim_jobs`, `complete_job`, `skip_job`, `fail_job`, `purge_finished_jobs` and
+  send-time data functions that re-check the clinic is active and return staff recipients only.
+- Scheduling API keys are encrypted by the API (AES-256-GCM, associated data = purpose, tenant,
+  connection id) before storage. No role can SELECT `credential_ciphertext`;
+  `app_private.scheduling_credential()` returns it only to that clinic's owner/admin/receptionist
+  or to that active clinic's widget. Owners/admins connect, choose appointment types and
+  disconnect; disconnecting erases the ciphertext. The widget sees only enabled appointment
+  types of an active connection, and only `id, tenant_id, provider, status` of the connection.
 ## Adding a tenant-owned table (checklist)
 1. `tenant_id uuid not null references public.tenants(id)`.
 2. `enable` + `force row level security`.

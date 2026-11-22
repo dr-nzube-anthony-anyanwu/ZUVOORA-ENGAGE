@@ -15,6 +15,7 @@ from app.routes.inbox import router as inbox_router
 from app.routes.knowledge import router as knowledge_router
 from app.routes.me import router as me_router
 from app.routes.platform import router as platform_router
+from app.routes.scheduling import router as scheduling_router
 from app.routes.tenants import router as tenants_router
 from app.routes.widget_admin import router as widget_admin_router
 from app.routes.widget_public import router as widget_public_router
@@ -22,6 +23,8 @@ from app.security.jwt import TokenVerifier
 from app.services.ai.factory import build_responder
 from app.services.domain_verification import DnsTxtVerifier
 from app.services.extraction import MAX_UPLOAD_BYTES
+from app.services.scheduling.calcom import DefaultProviderFactory
+from app.services.secrets_box import SecretsBox
 from app.services.storage import SupabaseObjectStore
 from app.services.supabase_admin import SupabaseAuthAdmin
 from app.services.widget_tokens import WidgetTokens
@@ -54,6 +57,17 @@ async def lifespan(app: FastAPI):
         else None
     )
     app.state.responder = build_responder(settings)
+    app.state.secrets_box = (
+        SecretsBox(
+            settings.integrations_encryption_key.get_secret_value(),
+            settings.integrations_encryption_key_previous.get_secret_value()
+            if settings.integrations_encryption_key_previous
+            else None,
+        )
+        if settings.integrations_encryption_key is not None
+        else None
+    )
+    app.state.scheduling_providers = DefaultProviderFactory(settings.calcom_api_url)
     app.state.db = None
     if settings.database_url is not None:
         db = Database(settings)
@@ -93,5 +107,6 @@ app.include_router(domains_router, prefix="/api/v1")
 app.include_router(knowledge_router, prefix="/api/v1")
 app.include_router(widget_admin_router, prefix="/api/v1")
 app.include_router(inbox_router, prefix="/api/v1")
+app.include_router(scheduling_router, prefix="/api/v1")
 app.include_router(widget_public_router)
 app.include_router(platform_router, prefix="/api/v1")

@@ -73,6 +73,12 @@ class Settings(BaseSettings):
     # Built widget assets (apps/widget/dist); defaults to the monorepo location.
     widget_dist_dir: str | None = None
 
+    # Encrypts third-party credentials at rest (Phase 4b, ADR-034): 32 random bytes, base64url.
+    # The previous key may be set during rotation so existing credentials stay readable.
+    integrations_encryption_key: SecretStr | None = None
+    integrations_encryption_key_previous: SecretStr | None = None
+    calcom_api_url: str = "https://api.cal.com"
+
     # Domain verification (DNS TXT). Empty = the operating system's resolvers.
     dns_resolvers: str = ""
     dns_timeout_seconds: float = 4.0
@@ -122,6 +128,27 @@ class Settings(BaseSettings):
             raise ValueError("EMAIL_ALLOWED_RECIPIENTS is a non-production safeguard only")
         return self
 
+    @model_validator(mode="after")
+    def integration_settings_are_consistent(self) -> "Settings":
+        from app.services.secrets_box import SecretsBox, SecretsBoxError
+
+        if self.integrations_encryption_key is not None:
+            try:
+                SecretsBox(
+                    self.integrations_encryption_key.get_secret_value(),
+                    self.integrations_encryption_key_previous.get_secret_value()
+                    if self.integrations_encryption_key_previous
+                    else None,
+                )
+            except SecretsBoxError as exc:
+                raise ValueError(f"INTEGRATIONS_ENCRYPTION_KEY: {exc}") from exc
+        if not self.calcom_api_url.startswith("https://") and self.app_env in {
+            "staging",
+            "production",
+        }:
+            raise ValueError("CALCOM_API_URL must use https")
+        return self
+
     @property
     def email_allowlist(self) -> list[str] | None:
         """None = everyone (production); otherwise the allowed addresses/@domains."""
@@ -141,7 +168,7 @@ class Settings(BaseSettings):
             missing = [
                 name
                 for name in ("supabase_url", "supabase_secret_key", "database_url",
-                         "widget_token_secret")
+                         "widget_token_secret", "integrations_encryption_key")
                 if getattr(self, name) is None
             ]
             if missing:

@@ -43,6 +43,9 @@ export default defineConfig({
         // http:// test sites may embed the widget (never allowed in staging/production).
         WIDGET_ALLOW_HTTP_FRAMES: "true",
         WIDGET_TOKEN_SECRET: process.env.WIDGET_TOKEN_SECRET ?? randomBytes(48).toString("base64url"),
+        // Scheduling against a local fake Cal.com; a random per-run credential encryption key.
+        CALCOM_API_URL: "http://127.0.0.1:4181",
+        INTEGRATIONS_ENCRYPTION_KEY: randomBytes(32).toString("base64url"),
       },
       url: "http://127.0.0.1:8073/health/ready",
       reuseExistingServer: false,
@@ -51,6 +54,12 @@ export default defineConfig({
     {
       command: "node e2e/site-server.mjs",
       url: "http://127.0.0.1:4180/?key=" + "0".repeat(32),
+      reuseExistingServer: false,
+      timeout: 30_000,
+    },
+    {
+      command: "node e2e/calcom-fake.mjs",
+      url: "http://127.0.0.1:4181/health",
       reuseExistingServer: false,
       timeout: 30_000,
     },

@@ -15,6 +15,7 @@ dependencies = [
   "psycopg[binary]>=3.3,<4.0",
   "psycopg-pool>=3.3,<4.0",
   "PyJWT[crypto]>=2.10,<3.0",
+  "cryptography>=50.0,<51.0",
   "dnspython>=2.7,<3.0",
   "python-multipart>=0.0.20,<0.1",
   "pypdf>=7.1,<8.0",
@@ -64,5 +65,6 @@ extend-immutable-calls = ["fastapi.Depends", "fastapi.File", "fastapi.Form", "fa
 "tests/integration/test_domain_recheck.py" = ["S101", "S105", "S106", "F811"]
 "tests/integration/test_evaluation.py" = ["S101", "S105", "S106", "F811"]
 "tests/integration/test_worker.py" = ["S101", "S105", "S106", "F811"]
+"tests/test_scheduling.py" = ["S101", "S105", "S106", "E501"]
 # Evaluation data table: one case per line is easier to review.
 "tests/integration/eval_cases.py" = ["E501"]
