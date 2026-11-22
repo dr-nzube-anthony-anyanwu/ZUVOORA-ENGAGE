@@ -18,7 +18,8 @@ _INTENTS = {
     "hours": r"\b(open|opening|opens|close|closing|closes|closed|hours?|timings?|working (days|hours)|"
     r"what time|today|tonight|tomorrow|weekend|holidays?|monday|tuesday|wednesday|thursday|"
     r"friday|saturday|sunday|mon|tue|wed|thu|fri|sat|sun)\b",
-    "contact": r"\b(phone|call|number|telephone|tel|whats ?app|e-?mail|contact|reach (you|the clinic))\b",
+    # "contact lens(es)" is a product, not a request for contact details.
+    "contact": r"\b(phone|call|number|telephone|tel|whats ?app|e-?mail|contact(?!\s*lens)|reach (you|the clinic))\b",
     # Location questions only ("where can I park?" is not an address question).
     "address": r"\b(where (are|is) (you|the clinic|your (clinic|office|branch(es)?))|address|location|located|directions?|find you|how (do|can) i (get|find) (to )?(you|the clinic)|your branch(es)?|map)\b",
     "services": r"\b(services?|offer|provide|price|prices|pricing|cost|costs|how much|fees?|charges?|"

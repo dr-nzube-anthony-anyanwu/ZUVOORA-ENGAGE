@@ -75,6 +75,18 @@ class Database:
             yield conn
 
     @contextmanager
+    def jobs_transaction(self) -> Iterator[psycopg.Connection]:
+        """One transaction as the scheduled-jobs role (engage_jobs, ADR-031).
+
+        No user and no tenant context: the role can only execute the narrow app_private job
+        functions granted to it; it has no direct table access.
+        """
+        with self._pool.connection() as conn, conn.transaction():
+            conn.execute("select set_config('request.jwt.claims', '', true)")
+            conn.execute("set local role engage_jobs")
+            yield conn
+
+    @contextmanager
     def user_transaction(self, principal: Principal) -> Iterator[psycopg.Connection]:
         """One transaction executed as the authenticated end user under RLS."""
         with self._pool.connection() as conn, conn.transaction():

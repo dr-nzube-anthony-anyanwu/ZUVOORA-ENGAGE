@@ -61,3 +61,7 @@ extend-immutable-calls = ["fastapi.Depends", "fastapi.File", "fastapi.Form", "fa
 # Reuses fixtures imported from test_answering_api (pytest injects them by parameter name).
 "tests/integration/test_ai_api.py" = ["S101", "S105", "S106", "F811"]
 "tests/integration/test_inbox_api.py" = ["S101", "S105", "S106", "F811"]
+"tests/integration/test_domain_recheck.py" = ["S101", "S105", "S106", "F811"]
+"tests/integration/test_evaluation.py" = ["S101", "S105", "S106", "F811"]
+# Evaluation data table: one case per line is easier to review.
+"tests/integration/eval_cases.py" = ["E501"]

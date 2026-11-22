@@ -185,6 +185,13 @@ def test_missing_price_is_not_invented():
     assert "has not published a price" in answer
 
 
+@pytest.mark.parametrize(
+    "question", ["Are contact lens trials free?", "Can I return opened contact lenses?"]
+)
+def test_contact_lenses_are_not_a_contact_details_question(question):
+    assert "contact" not in f.intents(question)
+
+
 def test_non_fact_questions_fall_through():
     assert (
         f.answer_from_facts(FACTS, "Do you accept HMO insurance plans?", MONDAY_NOON_UTC)[0] is None
