@@ -153,5 +153,54 @@ export function canEdit(role: Role): boolean {
   return role === "owner" || role === "admin";
 }
 
+export type HandoverStatus = "new" | "in_progress" | "resolved";
+export type ConversationStatus = "open" | "handover_requested" | "closed";
+
+export type Handover = {
+  id: string;
+  conversation_id: string;
+  status: HandoverStatus;
+  contact_name: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+  resolved_at: string | null;
+  resolved_by_me: boolean;
+};
+
+export type ConversationSummary = {
+  id: string;
+  status: ConversationStatus;
+  origin_host: string | null;
+  started_at: string;
+  last_message_at: string;
+  message_count: number;
+  preview: string | null;
+  handover_status: HandoverStatus | null;
+};
+
+export type ChatMessage = {
+  id: number;
+  role: "visitor" | "assistant" | "system";
+  content: string;
+  answer_source: string | null;
+  created_at: string;
+};
+
+export type ConversationDetail = {
+  conversation: ConversationSummary;
+  messages: ChatMessage[];
+  handover: Handover | null;
+};
+
+export type InboxSummary = { new: number; in_progress: number; open_conversations: number };
+
+/** Patient conversations and contact details are front-desk work (the API enforces this). */
+export function canHandleInbox(role: Role): boolean {
+  return role === "owner" || role === "admin" || role === "receptionist";
+}
+
 /** Result of a Server Action, shown next to the form that submitted it. */
 export type ActionState = { ok?: string; error?: string; details?: string[] } | null;

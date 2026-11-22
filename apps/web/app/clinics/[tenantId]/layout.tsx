@@ -1,7 +1,17 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { apiGet, tenantPath } from "@/lib/api";
 import { loadClinic } from "@/lib/clinic";
-import { ROLE_LABEL } from "@/lib/types";
+import { ROLE_LABEL, canHandleInbox, type InboxSummary } from "@/lib/types";
+
+/** The inbox badge is a convenience: if it cannot load, the page still renders. */
+async function inboxSummary(tenantId: string): Promise<InboxSummary | null> {
+  try {
+    return await apiGet<InboxSummary>(tenantPath(tenantId, "inbox", "summary"));
+  } catch {
+    return { new: 0, in_progress: 0, open_conversations: 0 };
+  }
+}
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +32,7 @@ export default async function ClinicLayout({
 }: { children: ReactNode; params: Promise<{ tenantId: string }> }) {
   const { tenantId } = await params;
   const clinic = await loadClinic(tenantId);
+  const inbox = canHandleInbox(clinic.my_role) ? await inboxSummary(tenantId) : null;
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -29,6 +40,14 @@ export default async function ClinicLayout({
         <div className="clinic-name">{clinic.tenant.display_name}</div>
         <div className="muted small">{ROLE_LABEL[clinic.my_role]}</div>
         <nav aria-label="Clinic sections">
+          {inbox && (
+            <Link href={`/clinics/${tenantId}/inbox`}>
+              Inbox
+              {inbox.new > 0 && (
+                <span className="count" aria-label={`${inbox.new} new`}>{inbox.new}</span>
+              )}
+            </Link>
+          )}
           {NAV.map((item) => (
             <Link key={item.href} href={`/clinics/${tenantId}${item.href}`}>{item.label}</Link>
           ))}

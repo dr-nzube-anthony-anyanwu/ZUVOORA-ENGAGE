@@ -11,6 +11,7 @@ from app.middleware import BodySizeLimitMiddleware
 from app.routes.content import router as content_router
 from app.routes.domains import router as domains_router
 from app.routes.health import router as health_router
+from app.routes.inbox import router as inbox_router
 from app.routes.knowledge import router as knowledge_router
 from app.routes.me import router as me_router
 from app.routes.platform import router as platform_router
@@ -91,5 +92,6 @@ app.include_router(content_router, prefix="/api/v1")
 app.include_router(domains_router, prefix="/api/v1")
 app.include_router(knowledge_router, prefix="/api/v1")
 app.include_router(widget_admin_router, prefix="/api/v1")
+app.include_router(inbox_router, prefix="/api/v1")
 app.include_router(widget_public_router)
 app.include_router(platform_router, prefix="/api/v1")

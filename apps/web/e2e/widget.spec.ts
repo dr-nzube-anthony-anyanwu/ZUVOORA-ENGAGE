@@ -32,6 +32,41 @@ test("widget chat and handover work on the verified clinic website", async ({ pa
   await expect(chat.getByText(/clinic team has your details/)).toBeVisible();
 });
 
+test("the receptionist works the call-back request from the inbox", async ({ page }) => {
+  const { tenantA, receptionistA } = fx();
+  await page.goto("/login");
+  await page.getByLabel("Email").fill(receptionistA.email);
+  await page.getByLabel("Password").fill(receptionistA.password);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForURL("**/dashboard");
+
+  await page.goto(`/clinics/${tenantA}`);
+  await page.getByRole("link", { name: /^Inbox/ }).click();
+  await expect(page.getByRole("link", { name: /^Inbox/ })).toContainText("1");
+  await expect(page.getByRole("cell", { name: "+234 801 000 0000" })).toBeVisible();
+  await page.getByRole("link", { name: "Visitor (no name given)" }).click();
+
+  // The visitor's text is shown as text, never as HTML.
+  const transcript = page.getByRole("list").filter({ hasText: "Are you open on Saturday?" });
+  await expect(transcript).toContainText('<img src=x onerror="parent.__xss=1">');
+  const request = page.getByRole("heading", { name: /Call-back request/ });
+  await expect(request).toContainText("New");
+
+  await page.getByRole("button", { name: "I'm handling this" }).click();
+  await expect(request).toContainText("In progress");
+  await page.getByRole("button", { name: "Mark as resolved" }).click();
+  await expect(request).toContainText("Resolved");
+  await expect(page.getByText("(by you)")).toBeVisible();
+
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Close conversation" }).click();
+  await expect(page.getByText("Closed", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Close conversation" })).toHaveCount(0);
+
+  await page.goto(`/clinics/${tenantA}/inbox`);
+  await expect(page.getByText("No one is waiting for a call back.")).toBeVisible();
+});
+
 test("the browser refuses to show the widget on an unverified website", async ({ page }) => {
   const { widgetKey, otherSite, runId } = fx();
   const blocked: string[] = [];

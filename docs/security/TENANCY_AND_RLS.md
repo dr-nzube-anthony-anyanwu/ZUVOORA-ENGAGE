@@ -136,9 +136,12 @@ all members read, owners/admins (and MFA platform admins) write; no DELETE (arch
   `frame-ancestors` policy.
 - Messages and the AI usage ledger are append-only. `rate_limit_hit` stores HMAC'd bucket keys
   (no raw IPs). `ai_spend()` returns tenant/global spend for budget enforcement.
-- Staff: all members read conversations; owners/admins/**receptionists** handle them (close,
-  resolve handovers — front-desk work); viewers read only; AI costs are visible to owners/admins;
-  only owners/admins configure the widget or rotate its key.
+- Staff: owners/admins/**receptionists** (the front desk) read message text and handover contact
+  details and handle them (close conversations, move handovers new → in progress → resolved);
+  viewers and MFA platform admins see conversation metadata only (status, counts, times) —
+  migration `20261122000002_inbox_privacy.sql`, ADR-030. Contact details are immutable; status
+  changes are stamped by the database and audited by the API, as is every transcript view.
+  AI costs are visible to owners/admins; only owners/admins configure the widget or rotate its key.
 
 ## Public widget (Phase 3b, ADR-027)
 - The API serves the embed script (`/widget/v1/loader.js`), the chat iframe

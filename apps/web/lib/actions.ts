@@ -18,6 +18,7 @@ type ContentKind = (typeof CONTENT_KINDS)[number];
 const ITEM_ACTIONS = ["publish", "unpublish", "archive", "restore"] as const;
 const DOCUMENT_ACTIONS = ["unpublish", "archive", "restore"] as const;
 const ROLES = ["owner", "admin", "receptionist", "viewer"] as const;
+const HANDOVER_STATUSES = ["new", "in_progress", "resolved"] as const;
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 class InvalidInput extends Error {}
@@ -457,4 +458,43 @@ export async function rotateWidgetKey(tenantId: string, _prev: ActionState): Pro
   }
   refresh(tenantId);
   return { ok: "New key created. Update the snippet on your website." };
+}
+
+// ----- inbox (Phase 3e) -------------------------------------------------------------------------
+const HANDOVER_MESSAGES: Record<(typeof HANDOVER_STATUSES)[number], string> = {
+  new: "Moved back to new.",
+  in_progress: "Marked as in progress.",
+  resolved: "Marked as resolved.",
+};
+
+export async function setHandoverStatus(
+  tenantId: string, handoverId: string, status: string, _prev: ActionState,
+): Promise<ActionState> {
+  let next: (typeof HANDOVER_STATUSES)[number];
+  try {
+    ids(tenantId, handoverId);
+    next = oneOf(status, HANDOVER_STATUSES);
+    await apiFetch(tenantPath(tenantId, "handovers", handoverId), {
+      method: "PATCH", json: { status: next },
+    });
+  } catch (error) {
+    return failure(error);
+  }
+  refresh(tenantId);
+  return { ok: HANDOVER_MESSAGES[next] };
+}
+
+export async function closeConversation(
+  tenantId: string, conversationId: string, _prev: ActionState,
+): Promise<ActionState> {
+  try {
+    ids(tenantId, conversationId);
+    await apiFetch(tenantPath(tenantId, "conversations", conversationId, "close"), {
+      method: "POST",
+    });
+  } catch (error) {
+    return failure(error);
+  }
+  refresh(tenantId);
+  return { ok: "Conversation closed. The visitor can start a new one by reloading the page." };
 }
