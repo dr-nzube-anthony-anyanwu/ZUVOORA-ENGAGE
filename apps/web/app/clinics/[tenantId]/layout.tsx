@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { Wordmark } from "@/components/marketing/Wordmark";
 import type { ReactNode } from "react";
+import { NavLink } from "@/components/NavLink";
+import { Wordmark } from "@/components/marketing/Wordmark";
 import { apiGet, tenantPath } from "@/lib/api";
 import { loadClinic } from "@/lib/clinic";
 import { ROLE_LABEL, canEdit, canHandleInbox, type InboxSummary } from "@/lib/types";
@@ -43,19 +44,21 @@ export default async function ClinicLayout({
         <div className="muted small">{ROLE_LABEL[clinic.my_role]}</div>
         <nav aria-label="Clinic sections">
           {inbox && (
-            <Link href={`/clinics/${tenantId}/inbox`}>
+            <NavLink href={`/clinics/${tenantId}/inbox`}>
               Inbox
               {inbox.new > 0 && (
                 <span className="count" aria-label={`${inbox.new} new`}>{inbox.new}</span>
               )}
-            </Link>
+            </NavLink>
           )}
-          {inbox && <Link href={`/clinics/${tenantId}/appointments`}>Appointments</Link>}
+          {inbox && <NavLink href={`/clinics/${tenantId}/appointments`}>Appointments</NavLink>}
           {NAV.map((item) => (
-            <Link key={item.href} href={`/clinics/${tenantId}${item.href}`}>{item.label}</Link>
+            <NavLink key={item.href} href={`/clinics/${tenantId}${item.href}`} exact={item.href === ""}>
+              {item.label}
+            </NavLink>
           ))}
-          {canEdit(clinic.my_role) && <Link href={`/clinics/${tenantId}/analytics`}>Analytics</Link>}
-          {canEdit(clinic.my_role) && <Link href={`/clinics/${tenantId}/plan`}>Plan &amp; usage</Link>}
+          {canEdit(clinic.my_role) && <NavLink href={`/clinics/${tenantId}/analytics`}>Analytics</NavLink>}
+          {canEdit(clinic.my_role) && <NavLink href={`/clinics/${tenantId}/plan`}>Plan &amp; usage</NavLink>}
         </nav>
         <form action="/auth/signout" method="post">
           <button type="submit" className="link-button">Sign out</button>

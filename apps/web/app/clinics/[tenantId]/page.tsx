@@ -55,6 +55,14 @@ export default async function ClinicOverview({ params }: { params: Promise<{ ten
       </p>
       <section className="panel">
         <h2>Setup checklist · {complete} of {steps.length}</h2>
+        {complete < steps.length && (
+          <p className="hint">
+            Let&apos;s teach Engage about your clinic. Add your services, opening hours, contact
+            details and frequently asked questions, then review what visitors will see before publishing.
+          </p>
+        )}
+        <progress className="checklist-progress" value={complete} max={steps.length}
+                  aria-label={`Setup ${complete} of ${steps.length} complete`} />
         <ol className="checklist">
           {steps.map((step) => (
             <li key={step.label} className={step.done ? "done" : ""}>

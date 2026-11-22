@@ -27,8 +27,9 @@
   button.setAttribute("aria-expanded", "false");
   button.style.cssText =
     "position:fixed;right:20px;bottom:20px;z-index:2147483000;border:0;border-radius:999px;" +
-    "padding:14px 18px;background:#15324b;color:#fff;font:600 14px Arial,sans-serif;" +
-    "cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.2)";
+    "padding:14px 20px;min-height:48px;background:#0b2258;color:#fff;" +
+    "font:600 15px system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;" +
+    "cursor:pointer;box-shadow:0 8px 24px rgba(11,34,88,.28)";
 
   let frame: HTMLIFrameElement | null = null;
 
@@ -45,8 +46,8 @@
       frame.referrerPolicy = "strict-origin";
       frame.style.cssText =
         "position:fixed;right:20px;bottom:84px;z-index:2147483000;width:min(380px,calc(100vw - 40px));" +
-        "height:min(560px,calc(100vh - 120px));border:1px solid #dce5e9;border-radius:16px;" +
-        "background:#fff;box-shadow:0 12px 32px rgba(0,0,0,.18)";
+        "height:min(580px,calc(100vh - 120px));border:1px solid #dce4f0;border-radius:18px;" +
+        "background:#fff;box-shadow:0 18px 48px rgba(11,34,88,.22)";
       document.body.appendChild(frame);
     }
     frame.style.display = "block";

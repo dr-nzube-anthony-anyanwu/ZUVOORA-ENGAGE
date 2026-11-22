@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { Wordmark } from "@/components/marketing/Wordmark";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
+import { NavLink } from "@/components/NavLink";
+import { Wordmark } from "@/components/marketing/Wordmark";
 import { ApiRequestError, apiGet, type Me } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -22,9 +23,9 @@ export default async function PlatformLayout({ children }: { children: ReactNode
         <Link href="/dashboard" className="sidebar-logo"><Wordmark size="sm" alt="ZUVOORA Engage — your clinics" /></Link>
         <div className="clinic-name">Platform</div>
         <nav aria-label="Platform sections">
-          <Link href="/platform">Clinics &amp; plans</Link>
-          <Link href="/platform/plans">Plan catalogue</Link>
-          <Link href="/platform/demo-requests">Demo requests</Link>
+          <NavLink href="/platform" exact>Clinics &amp; plans</NavLink>
+          <NavLink href="/platform/plans">Plan catalogue</NavLink>
+          <NavLink href="/platform/demo-requests">Demo requests</NavLink>
         </nav>
       </aside>
       <main className="workspace">

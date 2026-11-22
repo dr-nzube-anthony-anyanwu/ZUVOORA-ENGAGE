@@ -90,6 +90,24 @@ height 44 px. Links in body text are underlined royal blue.
 - Illustrations use the fictional "Lumen Eye Clinic (sample)" and are labelled.
 - Never ask for health or patient information on public forms.
 
+## Staff dashboard (D4)
+- Shared classes in `app/globals.css` (`.shell`, `.sidebar`, `.panel`, `.table`, `.badge`, `.tabs`,
+  `.field`, buttons) use the same tokens; page markup, labels and roles are unchanged.
+- `components/NavLink.tsx` marks the current section with `aria-current="page"` (highlighted and
+  announced). The sidebar stays in view on desktop; on phones the sections become one
+  horizontally scrolling row so the page content starts near the top.
+- The clinic overview shows the onboarding line "Let's teach Engage about your clinic." and a
+  progress bar while setup is incomplete.
+- Automated axe checks for the dashboard (`apps/web/e2e/dashboard-a11y.spec.ts`).
+
+## Chat widget (D4)
+- `apps/widget/src/frame.css` mirrors the tokens (navy header with a green status dot, royal-blue
+  actions, rounded bubbles, visible focus). System fonts only: the widget runs on clinics'
+  websites and makes no requests beyond the API.
+- "Book an appointment" and "Contact the clinic team" are pill buttons; the call-back and booking
+  panels scroll within a capped height so the conversation stays visible.
+- The launcher button (`loader.ts`) uses the navy and a 48 px touch target.
+- The widget is branded with the clinic's name, not ZUVOORA, because it represents the clinic.
+
 ## Next steps
-- Apply the tokens and components to the staff dashboard and the chat widget (track D4).
 - Genuine screenshots from synthetic data may replace the HTML previews.
