@@ -53,6 +53,7 @@ export default async function ClinicLayout({
           {NAV.map((item) => (
             <Link key={item.href} href={`/clinics/${tenantId}${item.href}`}>{item.label}</Link>
           ))}
+          {canEdit(clinic.my_role) && <Link href={`/clinics/${tenantId}/analytics`}>Analytics</Link>}
           {canEdit(clinic.my_role) && <Link href={`/clinics/${tenantId}/plan`}>Plan &amp; usage</Link>}
         </nav>
         <form action="/auth/signout" method="post">

@@ -8,6 +8,8 @@ from app import errors
 from app.config import get_settings
 from app.db import Database
 from app.middleware import BodySizeLimitMiddleware
+from app.routes.analytics import platform_router as analytics_platform_router
+from app.routes.analytics import router as analytics_router
 from app.routes.appointments import router as appointments_router
 from app.routes.content import router as content_router
 from app.routes.domains import router as domains_router
@@ -121,4 +123,6 @@ app.include_router(widget_public_router)
 app.include_router(platform_router, prefix="/api/v1")
 app.include_router(plans_clinic_router, prefix="/api/v1")
 app.include_router(usage_router, prefix="/api/v1")
+app.include_router(analytics_router, prefix="/api/v1")
+app.include_router(analytics_platform_router, prefix="/api/v1")
 app.include_router(plans_platform_router, prefix="/api/v1")

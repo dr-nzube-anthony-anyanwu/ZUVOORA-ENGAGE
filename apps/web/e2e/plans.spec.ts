@@ -33,6 +33,7 @@ test("platform admin changes a clinic's plan and the clinic sees it", async ({ p
   await clinicB.getByLabel("Plan").selectOption("essentials");
   await clinicB.getByRole("button", { name: "Save subscription" }).click();
   await expect(clinicB.getByText(/Subscription updated/)).toBeVisible();
+  await expect(page.getByRole("region", { name: "This month" })).toContainText("estimated monthly revenue");
   await page.goto("/platform/plans");
   await expect(page.getByRole("region", { name: "Premium plan" })).toContainText("Voice AI (not yet available)");
   await page.context().clearCookies();
@@ -48,12 +49,19 @@ test("platform admin changes a clinic's plan and the clinic sees it", async ({ p
   const thisMonth = page.getByRole("region", { name: /This month/ });
   await expect(thisMonth.getByRole("row", { name: /Chat messages/ })).toContainText("of 2,000");
   await expect(thisMonth.getByRole("row", { name: /Bookings/ })).toContainText("of 100");
+  // Phase 5c: Essentials gets basic analytics only.
+  await page.goto(`/clinics/${tenantB}/analytics`);
+  await expect(page.getByRole("region", { name: "Summary" })).toContainText("conversations");
+  await expect(page.getByText(/included from the Professional plan/)).toBeVisible();
   await page.context().clearCookies();
 
   // Clinic A's owner (Full ZUVOORA) sees unbuilt features as "not yet available".
   await signIn(page, ownerA);
   await page.goto(`/clinics/${tenantA}/plan`);
   await expect(page.getByRole("row", { name: /WhatsApp/ })).toContainText("Included — not yet available");
+  await page.goto(`/clinics/${tenantA}/analytics`);
+  await expect(page.getByRole("heading", { name: "Topics the assistant could not answer" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Daily activity" })).toBeVisible();
   await page.context().clearCookies();
 
   // Receptionists do not see the plan.

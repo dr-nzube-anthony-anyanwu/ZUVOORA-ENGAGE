@@ -304,7 +304,37 @@ export type Subscription = {
   notes: string | null;
 };
 
-export type UsageItem = { key: string; label: string; used: number; limit: number | null };
+export type Analytics = {
+  days: number;
+  conversations: number;
+  visitor_messages: number;
+  answers: Record<string, number>;
+  handovers: { total: number; resolved: number; open: number; median_hours_to_resolve: number | null };
+  bookings: Record<string, number>;
+  full_available: boolean;
+  full: {
+    daily: { day: string; conversations: number; visitor_messages: number; handovers: number; bookings: number }[];
+    cancellation_rate: number | null;
+    reschedule_rate: number | null;
+    ai_cost_usd: number;
+    ai_calls: number;
+    ai_answer_share: number | null;
+    unanswered_topics: { term: string; count: number }[];
+  } | null;
+};
+
+export type PlatformOverview = {
+  clinics: {
+    tenant_id: string; display_name: string; tenant_status: string; plan_key: string; plan_name: string;
+    subscription_status: string; monthly_price_ngn: number | null; messages: number; ai_usd: number;
+    emails: number; bookings: number; limits: Record<string, number>;
+  }[];
+  estimated_monthly_revenue_ngn: number;
+  ai_cost_usd_this_month: number;
+  paying_clinics: number;
+};
+
+export type UsageItem ={ key: string; label: string; used: number; limit: number | null };
 export type Usage = { period: string; monthly: UsageItem[]; totals: UsageItem[]; ai_tokens: number };
 
 export const LIMIT_LABELS: Record<string, string> = {
