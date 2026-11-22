@@ -24,6 +24,7 @@ from app.services.scheduling.base import (
     OutcomeUnknown,
     ProviderRejected,
     ProviderUnavailable,
+    SchedulingProvider,
     Slot,
 )
 
@@ -279,7 +280,11 @@ class DefaultProviderFactory:
     def __init__(self, calcom_api_url: str) -> None:
         self._calcom_api_url = calcom_api_url
 
-    def __call__(self, provider: str, credential: str) -> CalcomProvider:
+    def __call__(self, provider: str, credential: str) -> SchedulingProvider:
         if provider == "calcom":
             return CalcomProvider(credential, self._calcom_api_url)
+        if provider == "calendly":
+            from app.services.scheduling.calendly import CalendlyProvider
+
+            return CalendlyProvider(credential)
         raise ProviderUnavailable(f"unsupported_provider:{provider}")

@@ -45,7 +45,12 @@ from app.services.secrets_box import Sealed, SecretsBox, SecretsBoxError
 router = APIRouter(prefix="/tenants/{tenant_id}/scheduling", tags=["scheduling"])
 
 PURPOSE = "scheduling"
-KEY_PATTERNS = {"calcom": re.compile(r"^cal_[A-Za-z0-9_-]{8,250}$")}
+KEY_PATTERNS = {
+    "calcom": re.compile(r"^cal_[A-Za-z0-9_-]{8,250}$"),
+    # Calendly personal access tokens are JWT-like (header.payload.signature).
+    "calendly": re.compile(r"^[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}$"),
+}
+PROVIDER_NAMES = {"calcom": "Cal.com", "calendly": "Calendly"}
 MAX_TYPES = 20
 
 
@@ -139,8 +144,8 @@ class SchedulingOut(BaseModel):
 
 
 class ConnectIn(StrictModel):
-    provider: Literal["calcom"]
-    api_key: SecretStr = Field(min_length=10, max_length=300)
+    provider: Literal["calcom", "calendly"]
+    api_key: SecretStr = Field(min_length=10, max_length=3000)
 
 
 class ProviderEventTypeOut(BaseModel):
@@ -263,7 +268,11 @@ def connect(
 ) -> SchedulingOut:
     key = body.api_key.get_secret_value().strip()
     if not KEY_PATTERNS[body.provider].match(key):
-        raise ApiError(422, "invalid_key_format", "That does not look like a Cal.com API key.")
+        raise ApiError(
+            422,
+            "invalid_key_format",
+            f"That does not look like a {PROVIDER_NAMES[body.provider]} API key.",
+        )
     # 1. Authorise before touching the provider.
     with tenant_transaction(request, db, principal, tenant_id, MANAGER_ROLES) as (conn, _):
         if _live_connection(conn, tenant_id):
@@ -442,7 +451,8 @@ def set_appointment_types(
 
 
 # ----- Phase 4d: booking updates (webhook) and reminder settings --------------------------------
-WEBHOOK_PURPOSE = "calcom_webhook"
+# Events each provider is asked to send (Calendly reports reschedules as cancel + create).
+PROVIDER_EVENTS = {"calcom": webhooks.TRIGGERS, "calendly": ("invitee.created", "invitee.canceled")}
 
 
 class WebhookOut(BaseModel):
@@ -457,9 +467,9 @@ class SettingsIn(StrictModel):
     reminder_2h: bool
 
 
-def _subscriber_url(connection_id: uuid.UUID) -> str:
+def _subscriber_url(provider: str, connection_id: uuid.UUID) -> str:
     base = (get_settings().public_api_url or "").rstrip("/") or "http://127.0.0.1:8073"
-    return f"{base}/api/v1/webhooks/calcom/{connection_id}"
+    return f"{base}/api/v1/webhooks/{provider}/{connection_id}"
 
 
 @router.post("/webhook", response_model=WebhookOut)
@@ -482,7 +492,7 @@ def configure_webhook(
             raise ApiError(409, "not_connected", "No scheduling account is connected.")
         provider = open_connection(conn, box, factory, connection["id"])
     connection_id = connection["id"]
-    url = _subscriber_url(connection_id)
+    url = _subscriber_url(connection["provider"], connection_id)
     secret = secrets.token_urlsafe(32)
     automatic = url.startswith("https://")
     provider_webhook_id: str | None = None
@@ -496,7 +506,12 @@ def configure_webhook(
             provider_webhook_id = provider.create_webhook(url, webhooks.TRIGGERS, secret)
         except SchedulingError as exc:
             raise provider_error(exc) from exc
-    sealed = box.seal(secret, purpose=WEBHOOK_PURPOSE, tenant_id=tenant_id, record_id=connection_id)
+    sealed = box.seal(
+        secret,
+        purpose=f"{connection['provider']}_webhook",
+        tenant_id=tenant_id,
+        record_id=connection_id,
+    )
     with tenant_transaction(request, db, principal, tenant_id, MANAGER_ROLES) as (conn, _):
         conn.execute(
             "update public.scheduling_connections set webhook_secret_ciphertext = %s, "
@@ -516,7 +531,7 @@ def configure_webhook(
     return WebhookOut(
         mode="automatic" if automatic else "manual",
         subscriber_url=url,
-        triggers=list(webhooks.TRIGGERS),
+        triggers=list(PROVIDER_EVENTS[connection["provider"]]),
         secret=None if automatic else secret,
     )
 

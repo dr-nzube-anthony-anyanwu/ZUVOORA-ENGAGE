@@ -1,13 +1,15 @@
-"""Provider webhooks (Phase 4d, ADR-036):  POST /api/v1/webhooks/calcom/{connection_id}
+"""Provider webhooks (Phase 4d/4e, ADR-036):  POST /api/v1/webhooks/{calcom|calendly}/{connection}
 
 No user and no tenant from the request: the connection id selects the clinic's webhook secret,
-the HMAC signature authenticates the body, and the database applies each verified body once.
-Responses never reveal whether a connection exists (unknown or unverifiable -> 401).
+the provider's HMAC signature authenticates the body, and the database applies each verified
+body once. Responses never reveal whether a connection exists (unknown or unverifiable -> 401).
 """
 
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.concurrency import run_in_threadpool
@@ -23,9 +25,25 @@ from app.services.widget_tokens import WidgetTokens
 
 router = APIRouter(prefix="/api/v1/webhooks", tags=["provider webhooks"])
 
-WEBHOOK_PURPOSE = "calcom_webhook"
+Provider = Literal["calcom", "calendly"]
+WEBHOOK_PURPOSE = "calcom_webhook"  # Cal.com (kept for compatibility); see purpose_for()
 MAX_BODY = 256 * 1024
 RATE = (60, 120)  # per source IP per minute (provider retries included)
+
+SIGNATURE_HEADER: dict[str, str] = {
+    "calcom": "x-cal-signature-256",
+    "calendly": "calendly-webhook-signature",
+}
+VERIFY: dict[str, Callable[[str, bytes, str | None], bool]] = {
+    "calcom": webhooks.signature_valid,
+    "calendly": webhooks.calendly_signature_valid,
+}
+PARSE = {"calcom": webhooks.parse, "calendly": webhooks.parse_calendly}
+
+
+def purpose_for(provider: str) -> str:
+    """Encryption purpose of a connection's webhook secret (binds it to its provider)."""
+    return f"{provider}_webhook"
 
 
 def _unauthorised(request: Request, reason: str) -> ApiError:
@@ -38,6 +56,7 @@ def _handle(
     box: SecretsBox,
     tokens: WidgetTokens,
     request: Request,
+    provider: str,
     connection_id: uuid.UUID,
     body: bytes,
     signature: str | None,
@@ -50,24 +69,24 @@ def _handle(
         if not allowed:
             raise ApiError(429, "rate_limited", "Too many requests.")
         target = conn.execute(
-            "select tenant_id, ciphertext, key_id from app_private.webhook_target(%s)",
+            "select tenant_id, provider, ciphertext, key_id from app_private.webhook_target(%s)",
             (connection_id,),
         ).fetchone()
-    if target is None:
+    if target is None or target["provider"] != provider:
         raise _unauthorised(request, "unknown_connection")
     try:
         secret = box.open(
             Sealed(bytes(target["ciphertext"]), target["key_id"]),
-            purpose=WEBHOOK_PURPOSE,
+            purpose=purpose_for(provider),
             tenant_id=target["tenant_id"],
             record_id=connection_id,
         )
     except SecretsBoxError as exc:
         raise _unauthorised(request, "secret_unreadable") from exc
-    if not webhooks.signature_valid(secret, body, signature):
+    if not VERIFY[provider](secret, body, signature):
         raise _unauthorised(request, "bad_signature")
     try:
-        event = webhooks.parse(body)
+        event = PARSE[provider](body)
     except webhooks.WebhookError as exc:
         log_security_event(request, "webhook_invalid", reason=exc.kind)
         raise ApiError(400, "invalid_event", "Event not accepted.") from exc
@@ -90,8 +109,9 @@ def _handle(
     return {"result": result}
 
 
-@router.post("/calcom/{connection_id}", include_in_schema=False)
-async def calcom_webhook(
+@router.post("/{provider}/{connection_id}", include_in_schema=False)
+async def provider_webhook(
+    provider: Provider,
     connection_id: uuid.UUID,
     request: Request,
     db: Database = Depends(get_db),
@@ -101,8 +121,8 @@ async def calcom_webhook(
     body = await request.body()
     if len(body) > MAX_BODY:
         raise ApiError(413, "too_large", "Event too large.")
-    signature = request.headers.get("x-cal-signature-256")
+    signature = request.headers.get(SIGNATURE_HEADER[provider])
     # Database and crypto work off the event loop (the database driver is synchronous).
     return await run_in_threadpool(
-        _handle, db, box, tokens, request, connection_id, body, signature
+        _handle, db, box, tokens, request, provider, connection_id, body, signature
     )

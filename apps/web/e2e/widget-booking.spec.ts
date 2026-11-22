@@ -22,8 +22,8 @@ test("a patient books an appointment from the website chat", async ({ page }) =>
   // Clinic setup: connect Cal.com and offer "Eye exam".
   await signIn(page, ownerA);
   await page.goto(`/clinics/${tenantA}/scheduling`);
-  await page.getByLabel("Cal.com API key").fill(KEY);
-  await page.getByRole("button", { name: "Connect Cal.com" }).click();
+  await page.getByLabel("API key").fill(KEY);
+  await page.getByRole("button", { name: "Connect", exact: true }).click();
   await page.getByLabel("Offer Eye exam").check();
   await page.getByRole("button", { name: "Save appointment types" }).click();
   await expect(page.getByText("Appointment types saved.")).toBeVisible();

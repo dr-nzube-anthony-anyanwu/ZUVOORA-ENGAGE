@@ -30,13 +30,13 @@ export default async function SchedulingPage({ params }: { params: Promise<{ ten
     <>
       <h1>Scheduling</h1>
       <p>
-        Connect your Cal.com account so patients can book from the chat. Bookings are confirmed
-        only after Cal.com confirms them.
+        Connect your Cal.com or Calendly account so patients can book from the chat. Bookings are
+        confirmed only after the scheduling service confirms them.
       </p>
 
       <section className="panel">
         <div className="row-between">
-          <h2>Cal.com account</h2>
+          <h2>{connection?.provider === "calendly" ? "Calendly" : "Cal.com"} account</h2>
           {connection
             ? connection.status === "active" ? <Badge tone="good">Connected</Badge> : <Badge tone="bad">Needs attention</Badge>
             : <Badge>Not connected</Badge>}
@@ -60,9 +60,15 @@ export default async function SchedulingPage({ params }: { params: Promise<{ ten
             )}
           </>
         ) : editable ? (
-          <ActionForm action={connectScheduling.bind(null, tenantId)} submitLabel="Connect Cal.com">
-            <Field label="Cal.com API key"
-              hint="In Cal.com open Settings → Security → API keys and create a key. We check it with Cal.com, store it encrypted and never show it again.">
+          <ActionForm action={connectScheduling.bind(null, tenantId)} submitLabel="Connect">
+            <Field label="Scheduling service">
+              <select name="provider" defaultValue="calcom">
+                <option value="calcom">Cal.com</option>
+                <option value="calendly">Calendly</option>
+              </select>
+            </Field>
+            <Field label="API key"
+              hint="Cal.com: Settings → Security → API keys. Calendly: Integrations → API and webhooks → Personal access tokens. We check it with the service, store it encrypted and never show it again.">
               <input name="api_key" type="password" required minLength={10} maxLength={300}
                 autoComplete="off" spellCheck={false} data-gramm="false" data-lpignore="true" />
             </Field>

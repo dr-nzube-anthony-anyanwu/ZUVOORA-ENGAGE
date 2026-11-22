@@ -507,20 +507,21 @@ export async function connectScheduling(
 ): Promise<ActionState> {
   try {
     ids(tenantId);
+    const provider = oneOf(form.get("provider") ?? "calcom", ["calcom", "calendly"] as const);
     const apiKey = form.get("api_key");
     if (typeof apiKey !== "string" || apiKey.trim().length < 10) {
-      throw new UserInputError("Paste the API key from your Cal.com settings.");
+      throw new UserInputError("Paste the API key from your scheduling service's settings.");
     }
     // The key goes straight to the API, which verifies, encrypts and stores it. It is never
     // logged, returned or kept in the dashboard.
     await apiFetch(tenantPath(tenantId, "scheduling", "connect"), {
-      method: "POST", json: { provider: "calcom", api_key: apiKey.trim() },
+      method: "POST", json: { provider, api_key: apiKey.trim() },
     });
   } catch (error) {
     return failure(error);
   }
   refresh(tenantId);
-  return { ok: "Cal.com connected. Now choose which appointment types patients can book." };
+  return { ok: "Connected. Now choose which appointment types patients can book." };
 }
 
 export async function disconnectScheduling(

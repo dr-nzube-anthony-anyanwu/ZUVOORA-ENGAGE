@@ -22,12 +22,12 @@ test("owner connects Cal.com and chooses what patients can book", async ({ page 
   await page.goto(`/clinics/${tenantA}/scheduling`);
   await expect(page.getByText("Not connected")).toBeVisible();
 
-  await page.getByLabel("Cal.com API key").fill("cal_wrong_key_123456789");
-  await page.getByRole("button", { name: "Connect Cal.com" }).click();
+  await page.getByLabel("API key").fill("cal_wrong_key_123456789");
+  await page.getByRole("button", { name: "Connect", exact: true }).click();
   await expect(page.getByRole("alert").filter({ hasText: "did not accept" })).toBeVisible();
 
-  await page.getByLabel("Cal.com API key").fill(KEY);
-  await page.getByRole("button", { name: "Connect Cal.com" }).click();
+  await page.getByLabel("API key").fill(KEY);
+  await page.getByRole("button", { name: "Connect", exact: true }).click();
   await expect(page.getByText("Connected", { exact: true })).toBeVisible();
   await expect(page.getByText("e2e-clinic")).toBeVisible();
   await expect(page.locator("body")).not.toContainText(KEY);
