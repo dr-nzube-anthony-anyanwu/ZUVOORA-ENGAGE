@@ -44,6 +44,7 @@
 | ADR-040 | Analytics computed under the caller's RLS; basic for every plan, full from Professional; unanswered topics as keyword counts (≥2 questions), never transcripts; platform overview of counts and amounts only | Accepted (Phase 5c, 2026-11-22) |
 | ADR-041 | Photos and scanned PDFs uploaded by clinic staff are read by a cheap pinned vision model (OpenRouter, ZDR) after plan, quota and budget checks; pixels only (re-encoded, no metadata); text goes through the normal human review; no patient uploads | Accepted (Phase 3g, 2026-11-22) |
 | ADR-042 | Public website and brand system (wordmark until the official logo); demo requests stored for 12 months, readable only by MFA platform admins, submitted through a narrow public function with rate limits and a honeypot; notification email without contact details | Accepted (design track D1–D3, 2026-11-22) |
+| ADR-043 | Pilot deployment on the existing Contabo VPS with Docker Compose behind one edge reverse proxy and Cloudflare (Full strict, Origin CA, Authenticated Origin Pulls); staging and production as separate Compose projects and Supabase projects; images built and scanned in CI, deployed manually by digest | **Proposed** (Phase 6A plan, 2026-11-24; awaiting founder approval) |
 
 ### ADR-011 — Next.js 16
 - **Context:** `eslint.config.mjs` used the Next 16 flat-config entry points, so lint failed on Next 15; Next 15 also pulled a high-severity `postcss` advisory (npm's only fix was Next 16.4.6); the webpack build failed on the exFAT SSD (`EISDIR readlink`).
@@ -219,3 +220,27 @@ Record context, alternatives, decision and consequences for every major architec
 - **Alternatives:** a hosted form or CRM widget (third-party scripts against our CSP, data leaves our control); a mailto link (no record, easy to lose); self-service sign-up (contradicts invitation-only onboarding).
 - **Decision:** a `(marketing)` route group in the dashboard app (homepage, `/request-demo`, `/accessibility`) built from shared tokens (`docs/design/DESIGN_SYSTEM.md`), self-hosted fonts and inline SVG; every claim maps to a live capability (`docs/design/HOMEPAGE_CONTENT.md`); planned features only as "Coming soon"; illustrations labelled. Demo requests: the browser posts to a Server Action, which calls `POST /api/v1/public/demo-requests`; the API validates minimal business-contact fields (no health information), applies rate limits (per forwarded IP, per email, global) and a honeypot, and stores through `app_private.submit_demo_request()` (role `engage_widget`, refused inside a clinic chat session or for signed-in users). `public.demo_requests` has forced RLS: only MFA platform admins read it and change `status` (audited); details are immutable; rows are purged after 12 months by the worker. One `demo_request_alert` job per request emails `DEMO_REQUEST_NOTIFY_EMAIL` with clinic, place and interest only. Platform console page "Demo requests". The sign-in, two-factor and set-password pages use a shared branded layout; their logic is unchanged.
 - **Consequences:** the public site makes no claims beyond what is built and is checked automatically for WCAG 2.2 AA issues (axe). Per-IP limits see the dashboard server's address until the production proxy forwards the visitor address (Phase 6); per-email and global limits and the honeypot apply meanwhile. Privacy notice and terms are still needed before launch (Phase 6 legal review).
+
+### ADR-043 — Pilot deployment architecture (proposed)
+- **Status:** Proposed on 2026-11-24 and **not accepted**. It is accepted only after the founder approves the Phase 6 plan and answers its questions.
+- **Context:** the founder chose the existing Contabo Cloud VPS (possibly shared with the main ZUVOORA application), Cloudflare DNS for `zuvoora.com`, Supabase Cloud (separate staging and production projects), Docker Compose and three pilot clinics. The repository audit (`docs/operations/PHASE6_DEPLOYMENT_PLAN.md` §4) found blockers: published container ports bypass UFW; visitor IPs are lost behind a proxy; there are no backups, monitoring or deployment assets.
+- **Alternatives:**
+  - Kubernetes or a managed container platform: unjustified operational cost for three clinics.
+  - A second reverse proxy next to an existing one: port conflict, and it could disturb ZUVOORA.
+  - Building images on the VPS: a Next.js build needs about 2 GB of memory and would starve the neighbour application.
+  - Cloudflare "DNS only" with Let's Encrypt: the origin IP becomes exposed and there is no edge protection.
+  - Two-level host names such as `api.engage.zuvoora.com`: not covered by Cloudflare's free certificate.
+- **Decision (proposed):**
+  - **Proxy and TLS:** one edge proxy per server. Reuse the existing proxy if ZUVOORA already has one; otherwise use Caddy. Cloudflare is proxied, with Full (strict), an Origin CA certificate, Authenticated Origin Pulls and minimum TLS 1.2.
+  - **Visitor IP:** the proxy overwrites `X-Forwarded-For` with `CF-Connecting-IP`, and uvicorn trusts proxy headers only from the proxy and the dashboard.
+  - **Containers:** `engage-staging` and `engage-prod` Compose projects with no public ports, non-root, read-only root filesystem, `cap_drop ALL`, `no-new-privileges`, resource limits and log rotation.
+  - **Releases:** CI builds and scans images on release tags and publishes them to GHCR; a person deploys a tag by digest with `deploy.sh`, which rolls back automatically when the health checks fail.
+  - **Backups:** Supabase daily backups plus a nightly `age`-encrypted dump and storage copy to an off-site bucket that the server can write to but not read or delete.
+- **Consequences:**
+  - The code changes listed in stage 6A are needed before any server work.
+  - The shared host remains a residual risk: Docker or root on the host reaches every environment. This is mitigated as described in plan §6, or removed by a separate staging VPS.
+  - Founder decisions of 2026-11-24 (plan §1a):
+    - Supabase stays on the Free plan for now, so the nightly encrypted backup is the only backup until the upgrade.
+    - ClamAV scanning of uploads, failing closed.
+    - AI on at launch.
+    - Staging on the same VPS.

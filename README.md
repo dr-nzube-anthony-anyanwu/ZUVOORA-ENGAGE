@@ -401,7 +401,10 @@ Details: [`docs/security/TENANCY_AND_RLS.md`](docs/security/TENANCY_AND_RLS.md),
 | 3 | Widget, chat, retrieval, AI answers, evaluation, inbox, document AI (3g) | ✅ Accepted |
 | 4 | Scheduling (Cal.com, Calendly), booking, webhooks, reminders, email | ✅ Accepted |
 | 5 | Plans, entitlements, usage metering, quotas, analytics | ✅ Accepted |
-| 6 | Hardening, deployment, monitoring, backups, legal review, pilot | ⏳ Not started |
+| 6 | Hardening, deployment, monitoring, backups, legal review, pilot | 📝 Planning: deployment plan written, awaiting founder approval |
+
+Phase 6 plan (Contabo VPS, Cloudflare, Docker Compose; nothing deployed yet):
+[`docs/operations/PHASE6_DEPLOYMENT_PLAN.md`](docs/operations/PHASE6_DEPLOYMENT_PLAN.md).
 
 Open items carried into Phase 6:
 - Separate staging and production environments; hardened server, HTTPS reverse proxy, firewall.
@@ -424,7 +427,13 @@ integration, online payments.
 | Local development | [`docs/operations/LOCAL_DEVELOPMENT.md`](docs/operations/LOCAL_DEVELOPMENT.md) |
 | Implementation tracker and evidence | [`docs/operations/IMPLEMENTATION.md`](docs/operations/IMPLEMENTATION.md) |
 | Phased plan | [`docs/operations/PHASED_IMPLEMENTATION_PLAN.md`](docs/operations/PHASED_IMPLEMENTATION_PLAN.md) |
-| Architecture decisions (ADR-001 – ADR-042) | [`docs/decisions/DECISION_LOG.md`](docs/decisions/DECISION_LOG.md) |
+| **Phase 6 deployment plan and readiness report** | [`docs/operations/PHASE6_DEPLOYMENT_PLAN.md`](docs/operations/PHASE6_DEPLOYMENT_PLAN.md) |
+| **Phase 6 founder guide (step by step)** | [`docs/operations/PHASE6_FOUNDER_GUIDE.md`](docs/operations/PHASE6_FOUNDER_GUIDE.md) |
+| Contabo VPS inspection and hardening | [`docs/operations/CONTABO_VPS_SETUP.md`](docs/operations/CONTABO_VPS_SETUP.md) |
+| Staging and production deployment | [`docs/operations/PRODUCTION_DEPLOYMENT.md`](docs/operations/PRODUCTION_DEPLOYMENT.md) |
+| Rollback, backups and recovery | [`docs/operations/ROLLBACK_AND_RECOVERY.md`](docs/operations/ROLLBACK_AND_RECOVERY.md) |
+| Production security checklist (go / no-go) | [`docs/security/PRODUCTION_SECURITY_CHECKLIST.md`](docs/security/PRODUCTION_SECURITY_CHECKLIST.md) |
+| Architecture decisions (ADR-001 – ADR-043) | [`docs/decisions/DECISION_LOG.md`](docs/decisions/DECISION_LOG.md) |
 | Product requirements | [`docs/product/PRD.md`](docs/product/PRD.md), [`docs/product/PRD_FULL.md`](docs/product/PRD_FULL.md) |
 | Architecture and security design | [`docs/architecture/`](docs/architecture/) |
 | Tenancy, authorisation and RLS | [`docs/security/TENANCY_AND_RLS.md`](docs/security/TENANCY_AND_RLS.md) |

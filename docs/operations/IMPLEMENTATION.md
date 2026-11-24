@@ -15,7 +15,7 @@ and results it is based on. Architecture decisions are referenced as ADR-nnn
 | 3 | Widget, answering, AI, evaluation, inbox; 3g document AI | Accepted 2026-11-22 (3g added and verified the same day) |
 | 4 | Scheduling, booking, webhooks, reminders, email | Accepted 2026-11-22 |
 | 5 | Plans, entitlements, metering, quotas, analytics | Accepted 2026-11-22 |
-| 6 | Hardening, deployment, monitoring, backups, legal review, pilot | Not started (deferred by the founder) |
+| 6 | Hardening, deployment, monitoring, backups, legal review, pilot | Planning: the 6A readiness report and plan were written on 2026-11-24 and await founder approval. **Not complete.** |
 
 **Latest full verification** (local, 2026-11-22, commit `0b19ede`; CI green on `6e8ed2a`):
 
@@ -150,10 +150,75 @@ Separate from Phase 6. Brief tailored from the founder's research: `prompts/DESI
 - [x] Demo kit and console gaps (2026-11-22): platform console "Create a clinic" form (owner invited by email; existing API) and per-clinic **Activate / Suspend** buttons with a "Clinic active" badge — previously only possible through the API, and new clinics stayed "pending" (widget off). Local demo helpers (refuse anything but the local database): `npm run demo:setup` (three demo accounts with fresh passwords; "Lumen Eye Clinic (sample)" on Professional with published profile, branch hours, 4 services, 6 FAQs created through the API; widget on and allowed on `lumen-eye-clinic.localhost`; safe to rerun), `npm run demo:site` (sample clinic website embedding the real widget; key read per request), `npm run demo:calendar` (practice Cal.com). Step-by-step `docs/operations/DEMO_GUIDE.md`. Verified with a throwaway automated walkthrough (homepage → owner connects calendar → patient asks hours/prices/FAQ/emergency/medical/unknown, books and requests a call-back → receptionist sees both → admin enrols TOTP, creates and activates a clinic, invitation in Mailpit), then all demo data removed. Found and fixed during the walkthrough: the demo website cached a stale widget key; the activation message vanished with its button. E2E `plans.spec.ts` now also creates and activates a clinic; Playwright 20/20.
 - Not done yet (D5): genuine product screenshots; Lighthouse/Core Web Vitals measurement; founder section; privacy notice and terms (Phase 6 legal review).
 
-## Phase 6 — not started
-Brief: `prompts/phases/PHASE_6_HARDENING_DEPLOYMENT_PILOT.md`. Started on 2026-11-22 and deferred
-by the founder before any decision or change; the founder's decisions on hosting, domain,
-production database plan and monitoring are still needed.
+## Phase 6 — planning (not complete)
+Brief: `prompts/phases/PHASE_6_HARDENING_DEPLOYMENT_PILOT.md`. The phase was deferred on
+2026-11-22 and resumed on 2026-11-24 for planning only.
+
+**Founder direction (2026-11-24):**
+- **Hosting:** the existing Contabo Cloud VPS, which may be shared with the main ZUVOORA application.
+- **Domain:** `zuvoora.com` with DNS at Cloudflare.
+- **Host names:** `engage`, `api-engage`, `staging-engage` and `staging-api-engage`.
+- **Runtime:** Docker Compose.
+- **Database:** Supabase Cloud. The existing project becomes staging; a new production project will be created.
+- **Providers:** OpenRouter, Resend, Cal.com and Calendly.
+- **Customers:** three pilot clinics.
+
+**Readiness audit.** The audit covered the repository only. Nothing was run on any server, and no
+DNS, provider or credential was changed. The full report is in
+`docs/operations/PHASE6_DEPLOYMENT_PLAN.md`. Its findings:
+
+*Blockers:*
+- **R1:** the Compose file publishes 8073 and 3073 on all interfaces. Docker bypasses UFW, so the API and dashboard would be reachable on the server IP over http.
+- **R2:** uvicorn runs without proxy headers, so every visitor shares the proxy's IP for rate limits. Separately, the dashboard trusts the first `X-Forwarded-For` value, which can be forged.
+- **R3:** there are no production backups or restore drill, and stored files are not in database backups.
+- **R4:** the production project needs Auth custom SMTP and URLs.
+- **R5:** the legal documents do not exist yet.
+- **R6:** the shared host needs a founder decision.
+- **R7:** there are no deployment assets.
+
+*High:*
+- **R8:** production accepts `EMAIL_DELIVERY=log`, http URLs and a missing `PUBLIC_API_URL`.
+- **R9:** a 10-page document read can take about 120 seconds, longer than Cloudflare's 100-second limit.
+- **R10:** containers have no limits or hardening, and their logs are unbounded.
+- **R11:** the worker has no health check, and `reverify_domains` is not scheduled.
+- **R12:** there is no monitoring.
+- **R13:** CI neither builds nor scans images, base images are not digest-pinned, and `pip-audit` and `npm audit` do not run.
+- **R14:** the API docs would be public on staging.
+
+*Medium and low:* R15–R21. R21 is the host-name example in `.env.example`, fixed on 2026-11-24.
+
+**Plan.** Stages 6A–6J: repository readiness and read-only VPS inspection, hardening, accounts and
+secrets, DNS and TLS, staging, live integrations, monitoring with backups and a restore drill,
+security testing, production, then the pilot.
+
+**New documents:**
+- `CONTABO_VPS_SETUP.md`
+- `PRODUCTION_DEPLOYMENT.md`
+- `ROLLBACK_AND_RECOVERY.md`
+- `docs/security/PRODUCTION_SECURITY_CHECKLIST.md`
+- `PHASE6_FOUNDER_GUIDE.md`, the founder's step-by-step tasks
+
+ADR-043 records the architecture and is **proposed, not accepted**. The 13 founder questions are
+in plan §8.
+
+**Founder decisions (2026-11-24)** (details in plan §1a):
+- **VPS:** Cloud VPS 6 in the EU, with 6 cores, 12 GB RAM and 200 GB disk.
+- **D1:** staging shares the VPS.
+- **D2:** Supabase stays on the Free plan for now, so our own encrypted backup is the only backup and a restore drill is mandatory.
+- **D3:** Engage sends from `engage.zuvoora.com`. Clinic emails carry the clinic's name and Reply-To. The founder's mailbox receives alerts; its address is held only in the server env. Custom clinic sending domains are in the backlog.
+- **D4:** AI is on at launch.
+- **D5:** ClamAV virus scanning, failing closed, is added in 6A.
+- **D6:** there is no lawyer yet, so real patient data waits for reviewed legal documents. Claude may prepare drafts.
+
+**VPS inspection (2026-11-25, read-only, run by the founder):**
+- **System:** Ubuntu 24.04.5 LTS; 6 cores; 11 GiB RAM; no swap; 193 GB disk with 2.7 GB used.
+- **Software:** the server is empty. No Docker, no web server and no ZUVOORA application; only SSH listens.
+- **Security:** UFW is inactive. Root and password SSH login are on. fail2ban is not installed. 21 updates are waiting. An unused `ubuntu` sudo account exists.
+- **Access:** the founder logs in with an SSH key added through Contabo "Reset credentials".
+- **Decision:** the proxy is Caddy. Hardening steps were tailored in `CONTABO_VPS_SETUP.md` §3.
+
+**Next step:** the founder answers the remaining questions and runs the read-only VPS inspection; then 6A
+code changes begin after approval.
 
 Environments and deployment
 - [ ] Separate staging and production (the existing cloud Supabase project becomes staging; a new production project).
