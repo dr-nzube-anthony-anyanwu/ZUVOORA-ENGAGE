@@ -17,7 +17,7 @@ and results it is based on. Architecture decisions are referenced as ADR-nnn
 | 5 | Plans, entitlements, metering, quotas, analytics | Accepted 2026-11-22 |
 | 6 | Hardening, deployment, monitoring, backups, legal review, pilot | **In progress.** Plan approved; 6B (server hardening) accepted 2026-11-25; 6A (repository readiness) accepted 2026-11-25. **Not complete.** |
 
-**Latest full verification** (local, 2026-11-25, stage 6A, uncommitted working tree):
+**Latest full verification** (local, 2026-11-25, stage 6A, commit `5112826`; CI green, including the new `deployment` job):
 
 | Check | Result |
 |---|---|
@@ -30,7 +30,7 @@ and results it is based on. Architecture decisions are referenced as ADR-nnn
 | `npm audit --audit-level=high` (root, web, widget); `pip-audit` | 0 vulnerabilities |
 | Docker images (API, dashboard): Trivy, HIGH/CRITICAL with a fix | 0 (after removing npm from the dashboard runtime and applying Debian security updates) |
 | Hardened stack run locally (`deploy/compose.yml` against local Supabase) | api, worker, web, clamav healthy; no published ports; real ClamAV detects EICAR; worker auto-restarts |
-| Cloud database | 18 migrations applied up to `20261130000001_demo_requests.sql`; `20261201000001_patient_email_reply_to.sql` is local only until CI is green |
+| Cloud database (staging) | all 19 migrations applied (latest `20261201000001_patient_email_reply_to.sql`, after CI went green on `5112826`); `db lint` no schema errors |
 
 **Conventions**
 - "pgTAP" = `supabase/tests`; "API integration" = `apps/api/tests/integration` (real API, real
@@ -306,7 +306,9 @@ Not in 6A (planned later):
 - retention implementation (R17, from the provisional D12);
 - nonce CSP (R18).
 
-**Next step:** once CI is green, push the migration to the staging database; then 6C (the founder's accounts) and 6D (DNS, proxy and TLS).
+CI on `5112826`: both workflows green. Every job passed, including `deployment` (policy, shellcheck, preflight tests, the real ClamAV EICAR test, image builds, Trivy image scans and the non-root check). Staging database migrated: dry run, push, lint clean.
+
+**Next step:** 6C (the founder's accounts), then 6D (DNS, proxy and TLS).
 
 Environments and deployment
 - [ ] Separate staging and production (the existing cloud Supabase project becomes staging; a new production project).
