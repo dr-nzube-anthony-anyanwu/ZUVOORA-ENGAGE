@@ -70,12 +70,37 @@ PATIENT_FOOTER = (
 )
 
 
-def _patient_html(paragraphs: list[str]) -> str:
+def patient_footer(clinic: str, clinic_email: str | None) -> str:
+    if not clinic_email:
+        return PATIENT_FOOTER
+    return (
+        "You receive this email because you booked through the clinic's website chat. "
+        f"Replies to this email go to {clinic}."
+    )
+
+
+def _patient_html(paragraphs: list[str], footer: str = PATIENT_FOOTER) -> str:
     body = "".join(f"<p>{escape(p)}</p>" for p in paragraphs)
     return (
         '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;'
         f'color:#203040">{body}<p style="color:#607080;font-size:12px">'
-        f"{escape(PATIENT_FOOTER)}</p></div>"
+        f"{escape(footer)}</p></div>"
+    )
+
+
+def _patient_email(
+    to: str, subject: str, lines: list[str], clinic: str, clinic_email: str | None
+) -> Email:
+    """Patient emails carry the clinic's name as sender and, when the clinic published an email
+    address, Reply-To it, so patients' replies reach the clinic (Phase 6, D3)."""
+    footer = patient_footer(clinic, clinic_email)
+    return Email(
+        to=(to,),
+        subject=subject,
+        text="\n\n".join([*lines, footer]),
+        html=_patient_html(lines, footer),
+        sender_name=clinic,
+        reply_to=clinic_email or None,
     )
 
 
@@ -88,6 +113,7 @@ def booking_confirmation(
     attendee_zone: str,
     pending: bool,
     clinic_phone: str | None,
+    clinic_email: str | None = None,
 ) -> Email:
     when = _local(start, attendee_zone)
     if pending:
@@ -103,12 +129,7 @@ def booking_confirmation(
         f" on {clinic_phone}." if clinic_phone else "."
     )
     lines = [first, contact]
-    return Email(
-        to=(to,),
-        subject=subject,
-        text="\n\n".join([*lines, PATIENT_FOOTER]),
-        html=_patient_html(lines),
-    )
+    return _patient_email(to, subject, lines, clinic, clinic_email)
 
 
 def booking_alert(
@@ -147,6 +168,7 @@ def booking_reminder(
     start: datetime,
     attendee_zone: str,
     clinic_phone: str | None,
+    clinic_email: str | None = None,
 ) -> Email:
     when = _local(start, attendee_zone)
     lines = [
@@ -154,12 +176,8 @@ def booking_reminder(
         f"If you cannot attend, please contact {clinic}"
         + (f" on {clinic_phone}." if clinic_phone else "."),
     ]
-    return Email(
-        to=(to,),
-        subject=f"Reminder: your appointment at {clinic}",
-        text="\n\n".join([*lines, PATIENT_FOOTER]),
-        html=_patient_html(lines),
-    )
+    subject = f"Reminder: your appointment at {clinic}"
+    return _patient_email(to, subject, lines, clinic, clinic_email)
 
 
 def booking_cancelled(
@@ -170,6 +188,7 @@ def booking_cancelled(
     start: datetime,
     attendee_zone: str,
     clinic_phone: str | None,
+    clinic_email: str | None = None,
 ) -> Email:
     when = _local(start, attendee_zone)
     lines = [
@@ -177,12 +196,8 @@ def booking_cancelled(
         f"To book another time, use the chat on the clinic's website or contact {clinic}"
         + (f" on {clinic_phone}." if clinic_phone else "."),
     ]
-    return Email(
-        to=(to,),
-        subject=f"Your appointment at {clinic} was cancelled",
-        text="\n\n".join([*lines, PATIENT_FOOTER]),
-        html=_patient_html(lines),
-    )
+    subject = f"Your appointment at {clinic} was cancelled"
+    return _patient_email(to, subject, lines, clinic, clinic_email)
 
 
 QUOTA_EFFECT = {

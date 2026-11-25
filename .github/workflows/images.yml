@@ -1,0 +1,100 @@
+name: images
+# Phase 6 (ADR-043): build, scan and publish container images for a RELEASE TAG (v*). This never
+# deploys: a person deploys a published digest with deploy/scripts/deploy.sh on the server.
+#
+# Repository variables needed (Settings -> Secrets and variables -> Actions -> Variables; these are
+# PUBLIC browser values, not secrets):
+#   STAGING_SUPABASE_URL, STAGING_SUPABASE_PUBLISHABLE_KEY,
+#   PRODUCTION_SUPABASE_URL, PRODUCTION_SUPABASE_PUBLISHABLE_KEY
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      packages: write
+    env:
+      REGISTRY: ghcr.io/${{ github.repository_owner }}
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check the public build values exist
+        env:
+          S_URL: ${{ vars.STAGING_SUPABASE_URL }}
+          S_KEY: ${{ vars.STAGING_SUPABASE_PUBLISHABLE_KEY }}
+          P_URL: ${{ vars.PRODUCTION_SUPABASE_URL }}
+          P_KEY: ${{ vars.PRODUCTION_SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          for v in S_URL S_KEY P_URL P_KEY; do
+            test -n "${!v}" || { echo "repository variable for $v is not set"; exit 1; }
+          done
+          case "$S_KEY$P_KEY" in *sb_secret_*) echo "a SECRET key was given as a public value"; exit 1;; esac
+      - name: Build
+        env:
+          S_URL: ${{ vars.STAGING_SUPABASE_URL }}
+          S_KEY: ${{ vars.STAGING_SUPABASE_PUBLISHABLE_KEY }}
+          P_URL: ${{ vars.PRODUCTION_SUPABASE_URL }}
+          P_KEY: ${{ vars.PRODUCTION_SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          owner="$(echo "$REGISTRY" | tr '[:upper:]' '[:lower:]')"
+          echo "OWNER=$owner" >> "$GITHUB_ENV"
+          docker build -f apps/api/Dockerfile -t "$owner/zuvoora-engage-api:$TAG" .
+          docker build -t "$owner/zuvoora-engage-web-staging:$TAG" \
+            --build-arg NEXT_PUBLIC_SUPABASE_URL="$S_URL" \
+            --build-arg NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$S_KEY" \
+            apps/web
+          docker build -t "$owner/zuvoora-engage-web-production:$TAG" \
+            --build-arg NEXT_PUBLIC_SUPABASE_URL="$P_URL" \
+            --build-arg NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$P_KEY" \
+            apps/web
+      - name: Scan API image
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8
+        with:
+          scan-type: image
+          image-ref: ${{ env.OWNER }}/zuvoora-engage-api:${{ env.TAG }}
+          scanners: vuln,secret
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+      - name: Scan dashboard image (production build)
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8
+        with:
+          scan-type: image
+          image-ref: ${{ env.OWNER }}/zuvoora-engage-web-production:${{ env.TAG }}
+          scanners: vuln,secret
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+      - name: Publish and record digests
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          {
+            echo "## Release $TAG — image digests"
+            echo
+            echo "Deploy with (on the server):"
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+          for name in zuvoora-engage-api zuvoora-engage-web-staging zuvoora-engage-web-production; do
+            docker push --quiet "$OWNER/$name:$TAG"
+            digest="$(docker image inspect --format '{{index .RepoDigests 0}}' "$OWNER/$name:$TAG")"
+            echo "- \`$digest\`" >> "$GITHUB_STEP_SUMMARY"
+          done
+          api="$(docker image inspect --format '{{index .RepoDigests 0}}' "$OWNER/zuvoora-engage-api:$TAG")"
+          ws="$(docker image inspect --format '{{index .RepoDigests 0}}' "$OWNER/zuvoora-engage-web-staging:$TAG")"
+          wp="$(docker image inspect --format '{{index .RepoDigests 0}}' "$OWNER/zuvoora-engage-web-production:$TAG")"
+          {
+            echo
+            echo '```'
+            echo "sudo deploy/scripts/deploy.sh staging    $api $ws"
+            echo "sudo deploy/scripts/deploy.sh production $api $wp"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          docker logout ghcr.io

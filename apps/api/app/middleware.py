@@ -70,3 +70,16 @@ class BodySizeLimitMiddleware:
         except PayloadTooLarge:
             if not started:
                 await _reject(send, 413, "payload_too_large", message)
+
+
+def install_proxy_headers(app, settings) -> None:  # noqa: ANN001 - FastAPI app, Settings
+    """Trust X-Forwarded-For only from FORWARDED_ALLOW_IPS (the edge proxy and the dashboard).
+
+    Uvicorn walks the header from the right and returns the first address that is not a trusted
+    proxy, so a visitor cannot inject an address by sending their own header. With no trusted
+    proxies configured nothing is added and the direct peer is the client.
+    """
+    from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+
+    if settings.trusted_proxies:
+        app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=settings.trusted_proxies)

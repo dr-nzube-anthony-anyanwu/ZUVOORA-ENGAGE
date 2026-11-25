@@ -209,6 +209,29 @@ in `C:\Users\User\.ssh\`:
 4. You are in when you see `root@vmi3748133:~#`, or `engageadmin@vmi3748133:~$` after 6B.
 5. To leave, type `exit` and press Enter.
 
+### Admin commands (`sudo`): unlock first, then paste
+`sudo` runs a command with full admin rights and asks for the **engageadmin password**, not your
+key passphrase. **Before pasting a block of several lines, run this on its own:**
+```bash
+sudo -v
+```
+Paste the password and press Enter. sudo then remembers it for 15 minutes.
+
+If you skip this, the pasted lines pour into the password prompt. sudo counts each line as a
+wrong password ("Sorry, try again", "3 incorrect password attempts"), and the block only half
+runs.
+
+### Paste one line at a time
+On this laptop's terminal, a pasted block of several lines is unreliable. While the first command
+runs, the remaining lines are swallowed and never run. This was seen on 2026-11-25 with `ufw` and
+`apt install`. So:
+1. Paste **one line**.
+2. Press Enter.
+3. Wait until the prompt (`engageadmin@vmi3748133:~$`) comes back.
+4. Paste the next line.
+
+Claude gives server commands as single lines, joined with `&&` where needed.
+
 ### Shortcut: type `ssh engage-vps` instead of the IP (optional, do once)
 This saves the server's details in a small settings file on your laptop.
 1. In PowerShell, check whether the file already exists:
@@ -453,6 +476,21 @@ This key lets **only you** open the backups.
    clinic's.
 2. In each, create one event type called "Eye test (TEST)".
 3. Claude guides the connection when staging is live.
+
+### Step 6.8 — Two GitHub settings (when Claude says the first release is ready)
+The app is packaged into "images" that the server downloads from GitHub. Two settings are needed
+once:
+1. **Public browser values.** In your repository on github.com, open **Settings → Secrets and
+   variables → Actions → Variables** tab → **New repository variable**, and add four variables.
+   Use the **Variables** tab, not Secrets; these values are public anyway.
+   - `STAGING_SUPABASE_URL` and `STAGING_SUPABASE_PUBLISHABLE_KEY`, from the existing Supabase
+     project: Project Settings → API. Use the **publishable** key, which starts `sb_publishable_`.
+   - `PRODUCTION_SUPABASE_URL` and `PRODUCTION_SUPABASE_PUBLISHABLE_KEY`, from the new project.
+   - **Never** put a key that starts with `sb_secret_` here. The build refuses it anyway.
+2. **Make the images downloadable.** After the first release, open your GitHub profile →
+   **Packages**. For each of the three `zuvoora-engage-...` packages, go to **Package settings →
+   Change visibility → Public**. They contain no secrets (decision D8), so the server can
+   download them without a password.
 
 > 🛑 **STOP.** Tell Claude which of 6.1–6.7 are done. Claude applies the database setup to the
 > production project and checks everything.

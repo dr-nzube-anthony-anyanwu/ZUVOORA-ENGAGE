@@ -37,6 +37,7 @@ def build_vision_reader(settings: Settings) -> VisionReader | None:
         models=tuple(settings.ai_vision_models.split(",")),
         ceiling=ceiling,
         max_output_tokens=settings.ai_vision_max_output_tokens,
+        parallel=settings.ai_vision_parallel,
     )
 
 

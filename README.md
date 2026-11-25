@@ -164,14 +164,16 @@ apps/
   widget/         Embeddable chat widget (loader + iframe)
   worker/         Placeholder; the worker lives in apps/api (python -m app.worker)
 supabase/
-  migrations/     Database schema, roles, RLS policies and functions (17 migrations)
+  migrations/     Database schema, roles, RLS policies and functions (19 migrations)
   tests/          pgTAP tests (tenancy, RLS, audit, jobs, booking, plans, usage, document AI)
   templates/      Auth email templates
 docs/             Product, architecture, security, operations, decisions and evaluations
 prompts/          Master and phase prompts used to build the system
 scripts/          Repository tooling (local environment file generation)
-.github/workflows CI: quality-and-security-baseline, security-scans
-docker-compose.yml API, dashboard and worker services
+deploy/           Server deployment: hardened Compose file, Caddy edge proxy, env templates,
+                  preflight / deploy / rollback scripts (Phase 6)
+.github/workflows CI: quality-and-security-baseline, security-scans, images (release tags)
+docker-compose.yml Local container build of API, dashboard and worker (servers use deploy/)
 ```
 
 ## Getting started
@@ -301,14 +303,14 @@ The dashboard receives only browser-safe values (`NEXT_PUBLIC_SUPABASE_URL`,
 
 | Suite | Command | Scope | Current result* |
 |---|---|---|---|
-| Database (pgTAP) | `npm run db:test` | Roles, RLS and cross-tenant denial, audit immutability, content publishing, domains, documents, widget access, retrieval, jobs, scheduling, bookings, webhooks, plans, usage metering, document AI, demo requests | 416 / 416 |
-| API (pytest) | `cd apps/api; pytest` | Unit tests (JWT verification, extraction with malicious samples, AI guard and routing, providers, encryption, webhooks, vision) and integration tests through the real API and local Supabase | 527 passed, 2 skipped (Linux-only) |
+| Database (pgTAP) | `npm run db:test` | Roles, RLS and cross-tenant denial, audit immutability, content publishing, domains, documents, widget access, retrieval, jobs, scheduling, bookings, webhooks, plans, usage metering, document AI, demo requests | 419 / 419 |
+| API (pytest) | `cd apps/api; pytest` | Unit tests (JWT verification, extraction with malicious samples, AI guard and routing, providers, encryption, webhooks, vision) and integration tests through the real API and local Supabase | 581 passed, 4 skipped (Linux-only, live ClamAV in CI) |
 | End-to-end (Playwright) | `cd apps/web; npm run build; npm run test:e2e` | Real browser → dashboard → API → database, with local fakes for Cal.com and OpenRouter and two test "clinic websites" for cross-site embedding; axe WCAG 2.2 AA checks on public pages, dashboard and widget | 20 / 20 |
 | AI evaluation | `pytest tests/integration/test_evaluation.py` (hostile-model mode, part of every run and CI; the capped live mode runs only with `EVAL_LIVE=1` and a dedicated key) | 46 synthetic cases: emergency, medical-advice safety, prompt injection, tenant isolation, answer quality | 100% in the safety categories; 93.8% quality (live run) |
 | Lint / types | `ruff check .`, `npm run lint`, `npm run typecheck` | | clean |
 | Secret leakage | `npm run check:bundle` | Fails the build if a server secret reaches browser files | pass |
 
-\* Local results recorded on 2026-11-22; see [`docs/operations/IMPLEMENTATION.md`](docs/operations/IMPLEMENTATION.md).
+\* Local results recorded on 2026-11-25; see [`docs/operations/IMPLEMENTATION.md`](docs/operations/IMPLEMENTATION.md).
 
 Additional practices:
 - **Mutation checks**: key safeguards (tenant filters, budget checks, signature verification,
@@ -324,8 +326,9 @@ GitHub Actions on every push to `main` (actions pinned to commit SHAs):
 
 | Workflow | Jobs |
 |---|---|
-| `quality-and-security-baseline` | `database-and-api` (local Supabase, schema lint, pgTAP, Ruff, pytest incl. hostile AI evaluation, Playwright E2E), `web` (lint, typecheck, build, bundle-secret scan), `widget` (build), `secrets` (gitleaks) |
+| `quality-and-security-baseline` | `database-and-api` (local Supabase, schema lint, pgTAP, Ruff, pip-audit, pytest incl. hostile AI evaluation, Playwright E2E), `web` (npm audit, lint, typecheck, build, bundle-secret scan), `widget` (npm audit, build), `deployment` (Compose hardening policy, shellcheck, preflight tests, real ClamAV EICAR test, image builds and Trivy image scans), `secrets` (gitleaks) |
 | `security-scans` | Semgrep (OWASP Top 10, pinned container), Trivy filesystem scan; also scheduled |
+| `images` | On a release tag only: build, Trivy-scan and publish the container images to GHCR by digest (never deploys) |
 
 Database migrations are applied to the cloud project only after CI is green: dry run, apply, then
 schema lint.
@@ -401,7 +404,7 @@ Details: [`docs/security/TENANCY_AND_RLS.md`](docs/security/TENANCY_AND_RLS.md),
 | 3 | Widget, chat, retrieval, AI answers, evaluation, inbox, document AI (3g) | ✅ Accepted |
 | 4 | Scheduling (Cal.com, Calendly), booking, webhooks, reminders, email | ✅ Accepted |
 | 5 | Plans, entitlements, usage metering, quotas, analytics | ✅ Accepted |
-| 6 | Hardening, deployment, monitoring, backups, legal review, pilot | 📝 Planning: deployment plan written, awaiting founder approval |
+| 6 | Hardening, deployment, monitoring, backups, legal review, pilot | ⏳ In progress: server hardened (6B), deployment tooling built (6A); nothing deployed yet |
 
 Phase 6 plan (Contabo VPS, Cloudflare, Docker Compose; nothing deployed yet):
 [`docs/operations/PHASE6_DEPLOYMENT_PLAN.md`](docs/operations/PHASE6_DEPLOYMENT_PLAN.md).

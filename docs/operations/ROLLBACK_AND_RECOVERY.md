@@ -2,7 +2,7 @@
 
 Part of [PHASE6_DEPLOYMENT_PLAN.md](PHASE6_DEPLOYMENT_PLAN.md) (stages 6G and 6I).
 
-**Status: planned.** The scripts and backups described here are built in stages 6A and 6G. No
+**Status: rollback scripts built in 6A (2026-11-25; `deploy.sh` also rolls back automatically when a health check fails); backups are built in 6G.** No
 backup or restore drill has been carried out yet. Do not rely on this document until the drill in
 §4 has been run and recorded in `IMPLEMENTATION.md`.
 
@@ -19,8 +19,8 @@ backup or restore drill has been carried out yet. Do not rely on this document u
 ### Code only (no database change, or a backward-compatible one)
 
 ```bash
-cd /opt/zuvoora-engage
-sudo ./deploy/scripts/rollback.sh production      # redeploys the "previous" release recorded by deploy.sh
+cd /opt/zuvoora-engage/app
+sudo deploy/scripts/rollback.sh production      # swaps release.env with release.env.previous
 ```
 
 Then run the smoke tests, note the event in `releases.log`, and tell the founder.
@@ -38,7 +38,7 @@ since that time. Only the founder decides it (§3).
 
 ### A bad configuration value
 
-Fix `/opt/zuvoora-engage/<env>/.env` and run `deploy.sh <env> <current tag>`. To switch AI off
+Fix `/opt/zuvoora-engage/<env>/.env` and run `sudo deploy/scripts/deploy.sh <env> --current`. To switch AI off
 quickly, set `AI_ENABLED=false` and `AI_VISION_ENABLED=false` and redeploy. Answers fall back to
 the facts-first responder.
 

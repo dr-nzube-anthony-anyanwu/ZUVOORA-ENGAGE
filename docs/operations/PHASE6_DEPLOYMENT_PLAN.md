@@ -387,6 +387,28 @@ removed. No changes are made.
 **Evidence:** test counts; scan output; `docker inspect` showing no public ports; the inspection
 summary (OS, CPU, memory, disk, existing proxy and ports).
 
+**As built (2026-11-25); differences from the plan above:**
+- **Proxy file:** `deploy/proxy/Caddyfile` plus `deploy/proxy/compose.yml`. The server is empty,
+  so Caddy was chosen.
+- **Visitor IP:** the trusted-proxy check is done inside the app
+  (`app/middleware.py:install_proxy_headers`, settings `FORWARDED_ALLOW_IPS`), and uvicorn runs
+  with `--no-proxy-headers`. One place decides, and it is unit-tested.
+- **Releases:** a release is pinned in `/opt/zuvoora-engage/<env>/release.env`, written by
+  `deploy.sh`. The previous one is kept as `release.env.previous`; `rollback.sh` swaps them.
+  `deploy.sh` rolls back automatically when a health or smoke check fails.
+- **Document-reading deadline:** handled through settings, not by cancelling running calls
+  (which would still be billed). `AI_VISION_PARALLEL` (5) and `AI_VISION_DEADLINE_SECONDS` (85)
+  are checked at start-up: rounds × timeout must fit within the deadline, which itself stays
+  below Cloudflare's 100 seconds. The worst case is 2 × 40 = 80 seconds.
+- **Daily re-verification:** the worker runs it hourly. It is idempotent, because only domains
+  not checked in the last 20 hours are due, and only in workers with
+  `WORKER_RUN_SCHEDULES=true`. The Compose file runs exactly one worker per environment.
+- **Virus-scan audit:** rejections are audited as `knowledge.upload_rejected` with
+  `reason=malware` and `signature`, like every other upload rejection.
+- **Moved to 6G:** `backup.sh` and `restore-check.sh`. They need the backup accounts from 6C.
+- **Extra:** a preflight test script (`deploy/scripts/test_preflight.sh`), shellcheck, a real
+  ClamAV EICAR test in CI, and a policy check on both Compose files.
+
 ### 6B — Server hardening (after the inspection; tailored commands)
 
 **Files:** `docs/operations/CONTABO_VPS_SETUP.md`, the server-specific section.
@@ -617,8 +639,20 @@ address, response times and an incident contact.
 
 ## 8. Questions for the founder
 
-Answered on 2026-11-24: Q2 (D1), Q3 (D2), Q5 (D3), Q8 (D5), Q9 (D4), Q12 (D6). Q1 is partly
-answered (see §1a). Q1 was answered by the inspection on 2026-11-25. Still open: Q4, Q6, Q7, Q10, Q11, Q13.
+**All questions are answered.**
+- **2026-11-24:** Q2 (D1), Q3 (D2), Q5 (D3), Q8 (D5), Q9 (D4) and Q12 (D6).
+- **2026-11-25, Q1:** answered by the inspection.
+- **2026-11-25, the rest:** the founder said "use your recommendation" for the remaining questions,
+  recorded as D7–D12:
+
+| # | Question | Decision |
+|---|---|---|
+| D7 | Q4 Production region | Same region as the existing (staging) Supabase project. The VPS is in the EU, so an EU region is preferred if a choice is ever needed. |
+| D8 | Q6 Images | **Public** GHCR packages. The images contain no secrets; the browser values in them are public anyway. The server then needs no registry token. |
+| D9 | Q7 Staging access | Cloudflare Access (Zero Trust, free) in front of `staging-engage.zuvoora.com`, allowing the founder's email only |
+| D10 | Q10 Monitoring | UptimeRobot (free) with alerts to the founder's mailbox. No third-party error tracking for now, so no patient content leaves the system. |
+| D11 | Q11 Backup storage | Backblaze B2: a write-only application key, and Object Lock so backups cannot be deleted early |
+| D12 | Q13 Retention (**provisional**, until the lawyer reviews it) | Conversations and call-back requests: 12 months after the last activity. Provider and webhook events: 90 days. Audit events: 24 months. Demo requests: 12 months (already built). Finished jobs: as built. To be implemented before the pilot (R17). |
 
 1. **VPS details.** Answered: EU, Ubuntu 24.04.5 LTS, and the server is empty. **Proxy: Caddy**,
    because nothing owns ports 80 and 443. Details in `CONTABO_VPS_SETUP.md`, "Inspection results".

@@ -44,7 +44,7 @@
 | ADR-040 | Analytics computed under the caller's RLS; basic for every plan, full from Professional; unanswered topics as keyword counts (≥2 questions), never transcripts; platform overview of counts and amounts only | Accepted (Phase 5c, 2026-11-22) |
 | ADR-041 | Photos and scanned PDFs uploaded by clinic staff are read by a cheap pinned vision model (OpenRouter, ZDR) after plan, quota and budget checks; pixels only (re-encoded, no metadata); text goes through the normal human review; no patient uploads | Accepted (Phase 3g, 2026-11-22) |
 | ADR-042 | Public website and brand system (wordmark until the official logo); demo requests stored for 12 months, readable only by MFA platform admins, submitted through a narrow public function with rate limits and a honeypot; notification email without contact details | Accepted (design track D1–D3, 2026-11-22) |
-| ADR-043 | Pilot deployment on the existing Contabo VPS with Docker Compose behind one edge reverse proxy and Cloudflare (Full strict, Origin CA, Authenticated Origin Pulls); staging and production as separate Compose projects and Supabase projects; images built and scanned in CI, deployed manually by digest | **Proposed** (Phase 6A plan, 2026-11-24; awaiting founder approval) |
+| ADR-043 | Pilot deployment on the existing Contabo VPS with Docker Compose behind one edge reverse proxy and Cloudflare (Full strict, Origin CA, Authenticated Origin Pulls); staging and production as separate Compose projects and Supabase projects; images built and scanned in CI, deployed manually by digest | Accepted (founder, 2026-11-25; built in stage 6A) |
 
 ### ADR-011 — Next.js 16
 - **Context:** `eslint.config.mjs` used the Next 16 flat-config entry points, so lint failed on Next 15; Next 15 also pulled a high-severity `postcss` advisory (npm's only fix was Next 16.4.6); the webpack build failed on the exFAT SSD (`EISDIR readlink`).
@@ -222,7 +222,7 @@ Record context, alternatives, decision and consequences for every major architec
 - **Consequences:** the public site makes no claims beyond what is built and is checked automatically for WCAG 2.2 AA issues (axe). Per-IP limits see the dashboard server's address until the production proxy forwards the visitor address (Phase 6); per-email and global limits and the honeypot apply meanwhile. Privacy notice and terms are still needed before launch (Phase 6 legal review).
 
 ### ADR-043 — Pilot deployment architecture (proposed)
-- **Status:** Proposed on 2026-11-24 and **not accepted**. It is accepted only after the founder approves the Phase 6 plan and answers its questions.
+- **Status:** Accepted on 2026-11-25. The founder approved the plan and the recommendations (D1–D12); the repository side was built in stage 6A, using Caddy because the server is empty.
 - **Context:** the founder chose the existing Contabo Cloud VPS (possibly shared with the main ZUVOORA application), Cloudflare DNS for `zuvoora.com`, Supabase Cloud (separate staging and production projects), Docker Compose and three pilot clinics. The repository audit (`docs/operations/PHASE6_DEPLOYMENT_PLAN.md` §4) found blockers: published container ports bypass UFW; visitor IPs are lost behind a proxy; there are no backups, monitoring or deployment assets.
 - **Alternatives:**
   - Kubernetes or a managed container platform: unjustified operational cost for three clinics.

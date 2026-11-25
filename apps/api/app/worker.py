@@ -10,6 +10,7 @@ Logs never contain email addresses or message content.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import logging
 import signal
@@ -20,6 +21,7 @@ from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path
 
 import psycopg
 
@@ -108,6 +110,7 @@ def booking_confirmation(conn: psycopg.Connection, job: dict, settings: Settings
         row["attendee_time_zone"],
         row["status"] == "pending",
         row["clinic_phone"],
+        clinic_email=row.get("clinic_email"),
     )
 
 
@@ -154,6 +157,7 @@ def booking_reminder(conn: psycopg.Connection, job: dict, settings: Settings) ->
         row["start_at"],
         row["attendee_time_zone"],
         row["clinic_phone"],
+        clinic_email=row.get("clinic_email"),
     )
 
 
@@ -171,6 +175,7 @@ def booking_cancelled(conn: psycopg.Connection, job: dict, settings: Settings) -
         row["start_at"],
         row["attendee_time_zone"],
         row["clinic_phone"],
+        clinic_email=row.get("clinic_email"),
     )
 
 
@@ -353,6 +358,25 @@ def purge(db: Database) -> int:
         return jobs
 
 
+def touch_heartbeat(path: str) -> None:
+    """Tell the container health check this loop is alive (Phase 6, R11). Never fatal."""
+    with contextlib.suppress(OSError):
+        Path(path).touch()
+
+
+def run_scheduled(db: Database, settings: Settings) -> None:
+    """Daily domain re-verification (Phase 3f) from the worker loop. Safe to call hourly: only
+    domains not checked in the last 20 hours are due. Failures are logged, never fatal."""
+    from app.jobs import reverify_domains
+    from app.services.domain_verification import DnsTxtVerifier
+
+    try:
+        summary = reverify_domains.run(db, DnsTxtVerifier(settings))
+        log.info("scheduled_reverify checked=%d lapsed=%d", summary.checked, summary.lapsed)
+    except Exception:  # noqa: BLE001 - a scheduling failure must not stop email delivery
+        log.exception("scheduled_reverify_failed")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m app.worker")
     parser.add_argument("--once", action="store_true", help="process due jobs once and exit")
@@ -388,14 +412,23 @@ def main(argv: list[str] | None = None) -> int:
     providers = DefaultProviderFactory(settings.calcom_api_url)
     log.info("worker_started delivery=%s", settings.email_delivery)
     last_purge = 0.0
+    last_schedule = 0.0
     try:
         while True:
+            touch_heartbeat(settings.worker_heartbeat_file)
             counts = process_batch(db, sender, settings, box, providers)
             if counts:
                 log.info("worker_batch %s", " ".join(f"{k}={v}" for k, v in sorted(counts.items())))
             if time.monotonic() - last_purge > PURGE_EVERY_SECONDS:
                 purge(db)
                 last_purge = time.monotonic()
+            if (
+                settings.worker_run_schedules
+                and not args.once
+                and time.monotonic() - last_schedule > settings.domain_recheck_every_seconds
+            ):
+                run_scheduled(db, settings)
+                last_schedule = time.monotonic()
             if args.once or stop:
                 break
             if not counts:  # idle: wait before polling again

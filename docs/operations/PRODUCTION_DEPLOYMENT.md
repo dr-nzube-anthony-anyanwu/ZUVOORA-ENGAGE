@@ -2,15 +2,16 @@
 
 Part of [PHASE6_DEPLOYMENT_PLAN.md](PHASE6_DEPLOYMENT_PLAN.md) (stages 6E and 6I).
 
-**Status: planned, not yet usable.** The files this procedure relies on are created in stage 6A
-and do not exist yet:
+**Status: tooling built and tested locally (stage 6A, 2026-11-25); nothing has been deployed.**
+The procedure uses:
 
-- `deploy/compose.yml`
-- `deploy/env/*.env.example`
-- `deploy/scripts/*.sh`
-- the image workflow
+- `deploy/compose.yml`: the hardened Compose file for both environments.
+- `deploy/proxy/`: the Caddy edge proxy and its Compose file.
+- `deploy/env/*.env.example`: the settings templates.
+- `deploy/scripts/preflight.sh`, `deploy.sh` and `rollback.sh`.
+- `.github/workflows/images.yml`: builds, scans and publishes images for a release tag.
 
-Nothing has been deployed.
+Backups (`backup.sh`, restore check) are built in stage 6G.
 
 ## 1. Principles
 
@@ -36,9 +37,10 @@ Nothing has been deployed.
 | Supabase | Existing cloud project | New production project |
 | `APP_ENV` | `staging` | `production` |
 | Email | Resend, staging key; `EMAIL_ALLOWED_RECIPIENTS` = test inboxes only | Resend, production key; no allow-list |
-| AI | Staging OpenRouter key with a small credit limit | Production key; off until approved |
+| AI | Staging OpenRouter key (credit limit $1) | Production key (credit limit $5); on at launch (D4) |
 | Data | Synthetic only | Pilot clinics |
-| Local ports, if an existing host proxy is used | `127.0.0.1:8173` (API), `127.0.0.1:3173` (web) | `127.0.0.1:8073`, `127.0.0.1:3073` |
+| Private networks (edge / internal) | `10.73.10.0/24` / `10.73.11.0/24` | `10.73.0.0/24` / `10.73.1.0/24` |
+| Containers | api, worker, web, clamav; no published ports | the same |
 
 ### Settings per environment
 
@@ -95,15 +97,47 @@ python3 -c "import base64,os;print(base64.urlsafe_b64encode(os.urandom(32)).deco
 Copy each value into the password manager as well. Staging and production always get
 **different** values.
 
+## 2b. One-time server setup (after stage 6B; commands given step by step at the time)
+
+1. **Get the deployment files.** The repository is public, so no credentials are needed. Use a
+   release tag, never a moving branch:
+   ```bash
+   sudo git clone https://github.com/dr-nzube-anthony-anyanwu/ZUVOORA-ENGAGE.git /opt/zuvoora-engage/app
+   sudo git -C /opt/zuvoora-engage/app checkout v0.6.0
+   ```
+   The scripts below run from `/opt/zuvoora-engage/app`.
+2. **Create the settings file.** Copy the template to `/opt/zuvoora-engage/<env>/.env` (root,
+   600), fill it from the password manager (founder guide, Part 7), then run
+   `sudo deploy/scripts/preflight.sh <env>`.
+3. **Install the proxy certificates.** Put them in `/opt/zuvoora-engage/proxy/certs/` (root,
+   600; stage 6D):
+   - `origin.pem` and `origin-key.pem` (the Cloudflare Origin CA certificate);
+   - `cloudflare-origin-pull-ca.pem` (Cloudflare's public Authenticated Origin Pulls CA).
+4. **Start the proxy.** Do this after the first `deploy.sh` for both environments, because that
+   creates the two edge networks:
+   `sudo docker compose -p engage-proxy -f deploy/proxy/compose.yml up -d --wait`. After any
+   change to the Caddyfile, validate first with
+   `sudo docker exec engage-proxy caddy validate --config /etc/caddy/Caddyfile`, then restart
+   with `sudo docker restart engage-proxy`.
+5. **GitHub, once:**
+   - Make the three packages **public** (decision D8). Go to Packages → the package → Package
+     settings → Change visibility. The server then pulls without a token.
+   - Set the four repository *variables* listed in `.github/workflows/images.yml`. These are
+     public browser values, never secrets.
+
 ## 3. Release procedure
 
 ### Step 1 — Prepare (laptop)
 
 1. All work is merged on `main`, and CI shows both workflows green.
 2. Check the migration list: `npx supabase migration list --linked` for staging.
-3. Tag the release: `git tag v0.6.0 && git push origin v0.6.0` (with approval). The image workflow
-   builds, scans (Trivy, fails on HIGH or CRITICAL) and publishes both images, and prints their
-   digests.
+3. Tag the release: `git tag v0.6.0 && git push origin v0.6.0` (with approval). The `images`
+   workflow builds the API image and the two dashboard images (staging and production, each with
+   its own public Supabase values). It scans them with Trivy, failing on HIGH or CRITICAL issues
+   that have a fix, publishes them, and prints the exact `deploy.sh` commands with digests in the
+   run summary.
+4. On the server, update the deployment files to the same tag:
+   `sudo git -C /opt/zuvoora-engage/app fetch --tags && sudo git -C /opt/zuvoora-engage/app checkout v0.6.0`.
 
 ### Step 2 — Migrate staging (laptop, linked to the staging project)
 
@@ -116,9 +150,10 @@ npx supabase db lint --linked --level warning
 ### Step 3 — Deploy to staging (server)
 
 ```bash
-cd /opt/zuvoora-engage
-sudo ./deploy/scripts/deploy.sh staging v0.6.0
+cd /opt/zuvoora-engage/app
+sudo deploy/scripts/deploy.sh staging ghcr.io/<owner>/zuvoora-engage-api@sha256:<...> ghcr.io/<owner>/zuvoora-engage-web-staging@sha256:<...>
 ```
+Copy the exact line from the `images` run summary.
 
 `deploy.sh` does the following, in order, and stops at the first failure:
 
@@ -128,18 +163,22 @@ sudo ./deploy/scripts/deploy.sh staging v0.6.0
    - `APP_ENV` matches the target;
    - the URLs are https;
    - no staging value equals a production value (compared by hash).
-2. `docker compose pull` of the exact image digests for the tag.
-3. Remember the current release as "previous".
-4. `docker compose --project-name engage-staging --env-file ... up -d --wait` (waits for health
-   checks).
-5. Smoke tests:
-   - `/health/ready` returns 200;
-   - the dashboard `/healthz` returns 200;
-   - `/widget/loader.js` returns 200;
-   - a CORS preflight from `https://example.invalid` is refused;
-   - `/docs` returns 404.
-6. On failure, it **rolls back automatically** to the previous release and exits non-zero.
-7. It appends to `releases.log`.
+2. Create the environment's edge network with its fixed subnet, if it is missing.
+3. Write the release (the image digests) to `release.env`. The previous release is kept as
+   `release.env.previous`.
+4. `docker compose pull`, then `up -d --wait`, which waits for every health check: api, worker
+   heartbeat, web and ClamAV.
+5. Smoke checks inside the containers:
+   - `/health/ready` returns 200 (the database is reachable);
+   - `/widget/v1/loader.js` is served;
+   - `/docs` returns 404;
+   - the worker heartbeat is fresh;
+   - the dashboard `/healthz` answers.
+6. On any failure it **rolls back automatically** to the previous release and exits non-zero.
+7. It appends the result to `releases.log`.
+
+From the laptop afterwards, check the public addresses (padlock, sign-in page, widget on a test
+page), and that a CORS request from another origin is refused.
 
 ### Step 4 — Verify staging (people)
 
@@ -148,11 +187,13 @@ real test inboxes receive the mail. Check the worker processed jobs, with none `
 
 ### Step 5 — Production (after the founder approves the release)
 
-1. Take a fresh database backup: `sudo ./deploy/scripts/backup.sh production`. Confirm it uploaded.
+1. Take a fresh database backup with `sudo deploy/scripts/backup.sh production` (built in 6G).
+   Confirm it uploaded.
 2. Migrate production. Link the CLI to the production project, `db push --dry-run`, read it, then
    `db push --linked` and `db lint --linked`. Relink to staging afterwards so that day-to-day work
    cannot touch production by accident.
-3. Deploy: `sudo ./deploy/scripts/deploy.sh production v0.6.0`.
+3. Deploy the **same API digest** that staging ran, with the production dashboard image:
+   `sudo deploy/scripts/deploy.sh production <api@sha256> <web-production@sha256>`.
 4. Run the smoke tests (automatic), then a manual check: sign in, open one clinic, ask the widget
    a question on a test page.
 5. Watch for 30 minutes: uptime monitors, `docker compose ps`, worker logs (counts only).
@@ -190,8 +231,8 @@ volumes.
 
 1. Create the new value at the provider. Keep the old one active.
 2. Update the password manager.
-3. Run `sudo nano /opt/zuvoora-engage/<env>/.env`, then `sudo ./deploy/scripts/deploy.sh <env>
-   <current tag>`. That recreates the containers with the new value.
+3. Run `sudo nano /opt/zuvoora-engage/<env>/.env`, then (in `/opt/zuvoora-engage/app`)
+   `sudo deploy/scripts/deploy.sh <env> --current`. That recreates the containers with the new value.
 4. Check that everything is healthy, then revoke the old value at the provider.
 
 **`INTEGRATIONS_ENCRYPTION_KEY` is different.** Put the new key in `INTEGRATIONS_ENCRYPTION_KEY`

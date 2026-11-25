@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(22);
+select plan(25);
 
 grant engage_app to postgres with inherit false, set true;
 grant engage_widget to postgres with inherit false, set true;
@@ -132,6 +132,23 @@ set local role engage_jobs;
 select results_eq($$select type_name, attendee_email, status from app_private.job_booking('80000000-0000-4000-8000-000000000001')$$,
   $$values ('Eye exam'::text, 'ada@example.com'::text, 'confirmed'::text)$$, 'Worker reads booking email data');
 select throws_ok('select 1 from public.appointments', '42501', null, 'Worker has no direct table access');
+reset role;
+
+-- 6. Reply-To for patient emails comes from the PUBLISHED profile only (Phase 6, D3) (23-25)
+set local role engage_jobs;
+select is((select clinic_email from app_private.job_booking('80000000-0000-4000-8000-000000000001')),
+  null, 'No profile: no clinic email');
+reset role;
+insert into public.clinic_profiles (tenant_id, draft)
+  values ('10000000-0000-4000-8000-00000000000a', '{"public_email": "front-desk@clinic-a.example"}');
+set local role engage_jobs;
+select is((select clinic_email from app_private.job_booking('80000000-0000-4000-8000-000000000001')),
+  null, 'Draft-only email is not used');
+reset role;
+update public.clinic_profiles set published = draft where tenant_id = '10000000-0000-4000-8000-00000000000a';
+set local role engage_jobs;
+select is((select clinic_email from app_private.job_booking('80000000-0000-4000-8000-000000000001')),
+  'front-desk@clinic-a.example', 'Published email is the Reply-To address');
 reset role;
 
 select * from finish();

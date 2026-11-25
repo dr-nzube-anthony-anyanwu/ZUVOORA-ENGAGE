@@ -122,6 +122,12 @@ def test_sender_selection():
         database_url="postgresql://x",
         widget_token_secret="w" * 40,
         integrations_encryption_key="A" * 43,
+        dashboard_url="https://engage.example.com",
+        api_cors_origins="https://engage.example.com",
+        public_api_url="https://api-engage.example.com",
+        forwarded_allow_ips="172.30.0.0/24",
+        malware_scan_required=True,
+        clamav_host="clamav",
     )
     assert isinstance(build_sender(prod), ResendSender)
 

@@ -59,7 +59,7 @@ class VisionReader:
         models: tuple[str, ...],
         ceiling: PriceCeiling,
         max_output_tokens: int = 1500,
-        parallel: int = 4,
+        parallel: int = 5,
     ) -> None:
         self.gateway = gateway
         self.models = models

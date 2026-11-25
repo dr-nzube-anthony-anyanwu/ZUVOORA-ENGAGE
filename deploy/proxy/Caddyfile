@@ -1,0 +1,113 @@
+# ZUVOORA Engage edge proxy (Phase 6, ADR-043). Caddy 2.11, one per server; it owns ports 80/443.
+#
+# Traffic path: visitor -> Cloudflare (proxied, SSL "Full (strict)") -> this proxy -> containers.
+#  * TLS uses a Cloudflare Origin CA certificate (trusted by Cloudflare only).
+#  * Authenticated Origin Pulls: the TLS handshake REQUIRES Cloudflare's client certificate, so
+#    anyone connecting to the server's IP directly is refused before any request is read.
+#  * The visitor's address: Cloudflare puts it in CF-Connecting-IP; because only Cloudflare can
+#    connect (above), that header is trustworthy here. It REPLACES X-Forwarded-For (never appends),
+#    so a visitor-supplied X-Forwarded-For can never reach the application (R2).
+#
+# Files (never in Git; created on the server, root only):
+#   /etc/caddy/certs/origin.pem, origin-key.pem          Cloudflare Origin CA certificate + key
+#   /etc/caddy/certs/cloudflare-origin-pull-ca.pem         Cloudflare's Authenticated Origin Pulls CA
+# Validate before every reload:  docker exec engage-proxy caddy validate --config /etc/caddy/Caddyfile
+
+{
+	admin off
+	servers {
+		protocols h1 h2
+	}
+}
+
+(cloudflare_only) {
+	tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin-key.pem {
+		protocols tls1.2 tls1.3
+		client_auth {
+			mode require_and_verify
+			trust_pool file /etc/caddy/certs/cloudflare-origin-pull-ca.pem
+		}
+	}
+}
+
+(common) {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		-Server
+		-Via
+	}
+	request_body {
+		max_size 12MB
+	}
+	log {
+		output stdout
+		# JSON lines. Logged: time, status, host, path, duration. Not logged: query strings, cookies,
+		# authorization headers or bodies (no patient content in proxy logs).
+		format filter {
+			wrap json
+			fields {
+				request>uri delete
+				request>headers delete
+				request>tls delete
+				resp_headers delete
+			}
+		}
+	}
+}
+
+(to_api) {
+	reverse_proxy {args[0]}:8073 {
+		header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+		header_up -CF-Connecting-IP
+		transport http {
+			dial_timeout 5s
+			# Longest request: a 10-page scanned document read by AI (bounded at 85 s by the API
+			# settings, below Cloudflare's 100 s).
+			response_header_timeout 95s
+		}
+	}
+}
+
+(to_web) {
+	reverse_proxy {args[0]}:3073 {
+		header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+		header_up -CF-Connecting-IP
+		transport http {
+			dial_timeout 5s
+			response_header_timeout 95s
+		}
+	}
+}
+
+# ----- production -------------------------------------------------------------------------------
+engage.zuvoora.com {
+	import cloudflare_only
+	import common
+	import to_web prod-web
+}
+
+api-engage.zuvoora.com {
+	import cloudflare_only
+	import common
+	import to_api prod-api
+}
+
+# ----- staging (dashboard additionally behind Cloudflare Access) ---------------------------------
+staging-engage.zuvoora.com {
+	import cloudflare_only
+	import common
+	import to_web staging-web
+}
+
+staging-api-engage.zuvoora.com {
+	import cloudflare_only
+	import common
+	import to_api staging-api
+}
+
+# Anything else that reaches port 80 or 443 (scanners, the bare IP): no response.
+http:// {
+	abort
+}

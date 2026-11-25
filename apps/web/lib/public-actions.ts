@@ -43,7 +43,7 @@ export async function submitDemoRequest(_: DemoRequestState, form: FormData): Pr
   if (!body.consent) {
     return { error: "Please agree to be contacted about your request." };
   }
-  const forwarded = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim();
+  const forwarded = visitorAddress((await headers()).get("x-forwarded-for"));
   try {
     await publicPost("/api/v1/public/demo-requests", body, forwarded || undefined);
     return { ok: true };
@@ -60,4 +60,15 @@ export async function submitDemoRequest(_: DemoRequestState, form: FormData): Pr
     }
     return { error: "Something went wrong. Please try again later." };
   }
+}
+
+/**
+ * The visitor's address as set by OUR reverse proxy (Phase 6, R2). The proxy replaces
+ * X-Forwarded-For with the single address Cloudflare verified, so the last entry is the one added
+ * by our own infrastructure; earlier entries could have been typed by the visitor and are ignored.
+ * Anything that does not look like an IP address is dropped (the API then sees this server).
+ */
+function visitorAddress(header: string | null): string | undefined {
+  const last = header?.split(",").map((part) => part.trim()).filter(Boolean).pop();
+  return last && /^[0-9a-fA-F:.]{2,45}$/.test(last) ? last : undefined;
 }

@@ -50,3 +50,16 @@ Clinic staff only (patients cannot upload). Nothing is stored when a file is ref
 | D8 | Scan longer than the page limit | Refused before rendering or any call | "Scanned documents can have at most 10 pages" | Unit test `test_long_scans_are_refused_before_rendering` |
 | D9 | AI misreads a number or word | Text is stored as "awaiting review" with a "Read by AI" warning; nothing reaches patients until a person approves it | Warning on the review page | Playwright `documents-vision.spec.ts` |
 | D10 | Instructions written inside an image (prompt injection) | Treated as text to transcribe; result still needs human approval and later passes the chat answer guard | The text, for review | Prompt rule; review flow; Phase 3f hostile evaluation of the answer path |
+
+## Phase 6 — deployment (2026-11-25)
+
+| # | Failure | Behaviour | Detection / recovery |
+|---|---|---|---|
+| P1 | Virus scanner (ClamAV) down, slow or giving no verdict | Uploads are refused with 503 `scan_unavailable` (fail closed); nothing is parsed, stored or sent to AI. Chat and bookings are unaffected. | Container health check (`clamdcheck.sh`); restart policy; the log shows `malware_scan_unavailable kind=...` |
+| P2 | Infected upload | 422 `upload_malware` naming the signature; audited as `knowledge.upload_rejected` (`reason=malware`); never stored | Audit events |
+| P3 | Worker loop stuck or dead | Emails and reminders wait in the queue, which is durable | Heartbeat older than 5 minutes marks the container unhealthy; restart policy brings an exited worker back (verified locally) |
+| P4 | Domain re-check fails (DNS, database) | Logged; email delivery continues; retried next hour | `scheduled_reverify_failed` in the logs |
+| P5 | Release unhealthy after deploy | `deploy.sh` rolls back to the previous release automatically | `releases.log`; script exit code |
+| P6 | Unsafe production settings (http URLs, no proxy list, no scanner, email off) | The API refuses to start; `preflight.sh` refuses to deploy | Preflight output (names only) |
+| P7 | A visitor forges X-Forwarded-For | Ignored: the proxy replaces the header with Cloudflare's verified address, and the API only trusts the proxy and dashboard networks | Unit tests (`test_deployment_safety.py`) |
+| P8 | Long scanned document (10 pages) | At most 2 rounds × 40 seconds = 80 seconds, below Cloudflare's 100-second limit; settings that could exceed it are refused at start-up | Settings validation |

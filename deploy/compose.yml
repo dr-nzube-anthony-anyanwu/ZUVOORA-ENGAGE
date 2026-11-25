@@ -1,0 +1,139 @@
+# ZUVOORA Engage — server deployment (Phase 6, ADR-043). One file for both environments:
+#
+#   sudo docker compose -p engage-prod    --env-file /opt/zuvoora-engage/production/.env -f deploy/compose.yml up -d --wait
+#   sudo docker compose -p engage-staging --env-file /opt/zuvoora-engage/staging/.env    -f deploy/compose.yml up -d --wait
+#
+# (deploy/scripts/deploy.sh runs exactly this after its checks.)
+#
+# Rules enforced here and checked by deploy/scripts/check_compose_policy.py in CI:
+#   * NO service publishes a port. Docker's published ports bypass the Ubuntu firewall (R1); the
+#     edge proxy (deploy/proxy) reaches api and web over this environment's edge network.
+#   * Every container: non-root, read-only root filesystem, no Linux capabilities (ClamAV keeps
+#     the few it needs to drop to its own user), no-new-privileges, memory/CPU/process limits,
+#     rotated logs, restart policy, health check.
+#   * Images by digest only (ENGAGE_*_IMAGE = ghcr.io/...@sha256:...), built and scanned in CI.
+#   * The web container never receives the env file: only the browser-safe values listed below.
+#   * Staging and production never share a network.
+
+x-hardening: &hardening
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "3" }
+
+services:
+  api:
+    <<: *hardening
+    image: ${ENGAGE_API_IMAGE:?set ENGAGE_API_IMAGE (digest) in the env file}
+    env_file: ${ENGAGE_ENV_FILE:?set ENGAGE_ENV_FILE to this env file's own path}
+    environment:
+      MALWARE_SCAN_REQUIRED: "true"
+      CLAMAV_HOST: clamav
+      WIDGET_DIST_DIR: /app/widget
+    tmpfs: ["/tmp:size=256m,mode=1777"]  # document extraction works in memory and /tmp
+    mem_limit: 768m
+    cpus: 1.0
+    pids_limit: 256
+    healthcheck:
+      test: ["CMD", "python", "-m", "app.healthcheck", "api"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    depends_on:
+      clamav: { condition: service_started }
+    networks:
+      internal: {}
+      edge: { aliases: ["${ENGAGE_ENV:?set ENGAGE_ENV to prod or staging}-api"] }
+
+  worker:
+    <<: *hardening
+    image: ${ENGAGE_API_IMAGE}
+    env_file: ${ENGAGE_ENV_FILE}
+    command: ["python", "-m", "app.worker"]
+    environment:
+      WORKER_RUN_SCHEDULES: "true"  # exactly one worker per environment runs the daily jobs
+      WORKER_HEARTBEAT_FILE: /tmp/engage-worker-heartbeat
+      MALWARE_SCAN_REQUIRED: "true"
+      CLAMAV_HOST: clamav
+    tmpfs: ["/tmp:size=16m,mode=1777"]
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 128
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "python", "-m", "app.healthcheck", "worker"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks: [internal]
+
+  web:
+    <<: *hardening
+    image: ${ENGAGE_WEB_IMAGE:?set ENGAGE_WEB_IMAGE (digest) in the env file}
+    # Browser-safe values only. Do NOT add env_file here: it holds server-only secrets.
+    environment:
+      NODE_ENV: production
+      ENGAGE_API_URL: http://api:8073
+      ENGAGE_PUBLIC_API_URL: ${PUBLIC_API_URL:?set PUBLIC_API_URL}
+      NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_URL:?set SUPABASE_URL}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY:?set SUPABASE_PUBLISHABLE_KEY}
+    tmpfs:
+      - "/tmp:size=64m,mode=1777"
+      - "/app/.next/cache:size=128m,uid=10001,gid=10001"
+    mem_limit: 512m
+    cpus: 0.75
+    pids_limit: 256
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3073/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    depends_on:
+      api: { condition: service_healthy }
+    networks:
+      internal: {}
+      edge: { aliases: ["${ENGAGE_ENV}-web"] }
+
+  clamav:
+    # Virus scanner for uploads (founder decision D5). Private network only; signatures are kept
+    # up to date by freshclam inside the container and stored in a named volume.
+    image: ${ENGAGE_CLAMAV_IMAGE:-clamav/clamav:stable@sha256:64e30c0bf976198024deb3dc6d5cfe2485fb969c0f73549ba0fdb364b9469614}
+    cap_drop: [ALL]
+    cap_add: [CHOWN, SETUID, SETGID, DAC_OVERRIDE, FOWNER]  # entrypoint drops to the clamav user
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    environment:
+      CLAMAV_NO_MILTERD: "true"
+    volumes: ["clamav-db:/var/lib/clamav"]
+    mem_limit: 1536m
+    cpus: 0.5
+    pids_limit: 128
+    healthcheck:
+      test: ["CMD", "clamdcheck.sh"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 180s  # loading the signature database takes a minute or two
+    networks: [internal]
+
+networks:
+  internal:
+    driver: bridge
+    ipam:
+      config: [{ subnet: "${ENGAGE_INTERNAL_SUBNET:?set ENGAGE_INTERNAL_SUBNET}" }]
+  edge:
+    # Created once per environment by deploy/scripts/deploy.sh; the edge proxy joins it.
+    external: true
+    name: ${ENGAGE_EDGE_NETWORK:?set ENGAGE_EDGE_NETWORK}
+
+volumes:
+  clamav-db: {}

@@ -28,6 +28,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Container images (apps/web/Dockerfile) set NEXT_OUTPUT=standalone: a self-contained server
+  // without development dependencies. Local runs and the E2E tests keep the default output.
+  ...(process.env.NEXT_OUTPUT === "standalone" ? { output: "standalone" as const } : {}),
   poweredByHeader: false,
   reactStrictMode: true,
   // The repository root also has a package-lock.json (Supabase CLI tooling); pin the app root.

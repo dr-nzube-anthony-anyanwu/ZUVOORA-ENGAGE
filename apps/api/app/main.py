@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app import errors
 from app.config import get_settings
 from app.db import Database
-from app.middleware import BodySizeLimitMiddleware
+from app.middleware import BodySizeLimitMiddleware, install_proxy_headers
 from app.routes.analytics import platform_router as analytics_platform_router
 from app.routes.analytics import router as analytics_router
 from app.routes.appointments import router as appointments_router
@@ -33,6 +33,7 @@ from app.security.jwt import TokenVerifier
 from app.services.ai.factory import build_budget, build_responder, build_vision_reader
 from app.services.domain_verification import DnsTxtVerifier
 from app.services.extraction import MAX_UPLOAD_BYTES
+from app.services.malware_scan import build_scanner
 from app.services.scheduling.calcom import DefaultProviderFactory
 from app.services.secrets_box import SecretsBox
 from app.services.storage import SupabaseObjectStore
@@ -69,6 +70,7 @@ async def lifespan(app: FastAPI):
     app.state.responder = build_responder(settings)
     app.state.vision_reader = build_vision_reader(settings)  # None unless AI is enabled
     app.state.ai_budget = build_budget(settings)
+    app.state.malware_scanner = build_scanner(settings)  # None unless CLAMAV_HOST is set
     app.state.secrets_box = (
         SecretsBox(
             settings.integrations_encryption_key.get_secret_value(),
@@ -96,9 +98,9 @@ app = FastAPI(
     title=settings.app_name,
     version="0.1.0",
     description="Backend API for ZUVOORA Engage",
-    docs_url="/docs" if settings.app_env != "production" else None,
-    redoc_url="/redoc" if settings.app_env != "production" else None,
-    openapi_url="/openapi.json" if settings.app_env != "production" else None,
+    docs_url="/docs" if settings.api_docs_enabled else None,
+    redoc_url="/redoc" if settings.api_docs_enabled else None,
+    openapi_url="/openapi.json" if settings.api_docs_enabled else None,
     lifespan=lifespan,
 )
 errors.install(app)
@@ -111,6 +113,10 @@ app.add_middleware(
 )
 # Outermost: cap request bodies (10 MB upload + multipart overhead) before anything parses them.
 app.add_middleware(BodySizeLimitMiddleware, max_bytes=MAX_UPLOAD_BYTES + 256 * 1024)
+# Outermost of all: the visitor's address from X-Forwarded-For, trusted only when the request
+# comes from the reverse proxy or the dashboard server (FORWARDED_ALLOW_IPS; Phase 6, R2). The
+# container runs uvicorn with --no-proxy-headers so this is the only place that decides.
+install_proxy_headers(app, settings)
 app.include_router(health_router)
 app.include_router(me_router, prefix="/api/v1")
 app.include_router(tenants_router, prefix="/api/v1")

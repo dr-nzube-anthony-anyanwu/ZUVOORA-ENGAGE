@@ -12,8 +12,10 @@ provider response bodies or recipients.
 from __future__ import annotations
 
 import logging
+import re
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from email.utils import formataddr, parseaddr
 from typing import Protocol
 
 import httpx
@@ -27,6 +29,11 @@ class Email:
     subject: str
     text: str
     html: str
+    # Display name shown before the platform's sending address, e.g. the clinic's name
+    # ("Lumen Eye Clinic via ZUVOORA Engage <no-reply@...>"); None = the configured sender.
+    sender_name: str | None = None
+    # Where replies go (the clinic's published email address); None = no Reply-To.
+    reply_to: str | None = None
 
 
 class EmailError(Exception):
@@ -60,14 +67,22 @@ class ResendSender:
             follow_redirects=False,
         )
 
+    def _from(self, sender_name: str | None) -> str:
+        if not sender_name:
+            return self._sender
+        _, address = parseaddr(self._sender)
+        return formataddr((f"{display_name(sender_name)} via ZUVOORA Engage", address))
+
     def send(self, email: Email, idempotency_key: str) -> str:
-        body = {
-            "from": self._sender,
+        body: dict[str, object] = {
+            "from": self._from(email.sender_name),
             "to": list(email.to),
             "subject": email.subject,
             "text": email.text,
             "html": email.html,
         }
+        if email.reply_to:
+            body["reply_to"] = [email.reply_to]
         try:
             response = self._client.post(
                 self.URL, json=body, headers={"Idempotency-Key": idempotency_key[:256]}
@@ -112,9 +127,17 @@ class AllowlistSender:
         if not allowed:
             log.info("email_suppressed reason=allowlist recipients=%d", len(email.to))
             return "suppressed:allowlist"
-        return self._inner.send(
-            Email(allowed, email.subject, email.text, email.html), idempotency_key
-        )
+        return self._inner.send(replace(email, to=allowed), idempotency_key)
+
+
+_UNSAFE_NAME = re.compile(r'[\x00-\x1f\x7f<>"\\,;:@()\[\]]')
+
+
+def display_name(name: str) -> str:
+    """A clinic name made safe for an email "From" display name: no header-breaking characters
+    or address look-alikes, at most 60 characters."""
+    cleaned = " ".join(_UNSAFE_NAME.sub(" ", name).split())
+    return cleaned[:60].strip() or "Your clinic"
 
 
 def build_sender(settings) -> EmailSender:  # noqa: ANN001 - Settings (avoid import cycle)

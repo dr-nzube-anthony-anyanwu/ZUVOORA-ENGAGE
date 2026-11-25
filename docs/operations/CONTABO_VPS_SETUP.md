@@ -118,6 +118,9 @@ in [PHASE6_FOUNDER_GUIDE.md, Part 2b](PHASE6_FOUNDER_GUIDE.md#part-2b--how-to-lo
 4. **Check ZUVOORA before and after each step:** open its website, and run `sudo docker ps` to
    confirm its containers are "Up".
 5. One change at a time. Write down each command and its result.
+6. **Paste one line at a time** and wait for the prompt. Multi-line pastes from the founder's
+   Windows terminal lose lines while a command is running. Run `sudo -v` before any `sudo` line.
+   Turn the firewall on only after `ufw show added` lists the SSH rule.
 
 ## 3. Hardening outline (stage 6B — not yet approved)
 

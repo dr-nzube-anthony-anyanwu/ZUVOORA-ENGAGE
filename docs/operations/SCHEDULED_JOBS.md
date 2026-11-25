@@ -44,8 +44,14 @@ Behaviour of `reverify_domains`:
 - Prints counts only (`checked=… lapsed=… verified=…`); exit code 1 on configuration or database
   errors so the scheduler can alert.
 
-Scheduling is configured at deployment (Phase 6). Until then the job can be run manually against
-the local stack. Owner notification by email when a domain lapses arrives with the Phase 4 email
+**Scheduling (Phase 6, 2026-11-25).** The worker runs this job itself, hourly. Only domains not
+checked in the last 20 hours are due, so in effect each domain is checked once a day. This runs
+only in workers started with `WORKER_RUN_SCHEDULES=true`; `deploy/compose.yml` runs exactly one
+worker per environment. A failure is logged (`scheduled_reverify_failed`) and never stops email
+delivery. The job can still be run by hand: `python -m app.jobs.reverify_domains`.
+
+**Worker health.** The worker touches `WORKER_HEARTBEAT_FILE` on every loop. The container health
+check (`python -m app.healthcheck worker`) fails when it is older than 5 minutes. Owner notification by email when a domain lapses arrives with the Phase 4 email
 jobs.
 
 ## Answer evaluation (on request, not scheduled)

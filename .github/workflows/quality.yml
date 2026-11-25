@@ -40,6 +40,11 @@ jobs:
         run: |
           npm ci
           npm run build
+      - name: Python dependency audit (known vulnerabilities)
+        working-directory: apps/api
+        run: |
+          pip install "pip-audit>=2.9,<3"
+          pip-audit --skip-editable
       - name: API unit + integration tests
         working-directory: apps/api
         run: pytest -rs
@@ -100,6 +105,8 @@ jobs:
           cache: npm
           cache-dependency-path: apps/web/package-lock.json
       - run: npm ci
+      - name: Dependency audit (high and critical)
+        run: npm audit --audit-level=high
       - run: npm run lint
       - run: npm run typecheck
       - name: Build (browser-safe placeholder config only)
@@ -122,7 +129,64 @@ jobs:
           cache: npm
           cache-dependency-path: apps/widget/package-lock.json
       - run: npm ci
+      - name: Dependency audit (high and critical)
+        run: npm audit --audit-level=high
       - run: npm run build
+  # ----- Phase 6: deployment assets (no server, no registry, no secrets) -----------------------
+  deployment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      # The same pinned scanner image production uses (deploy/compose.yml).
+      clamav:
+        image: clamav/clamav@sha256:64e30c0bf976198024deb3dc6d5cfe2485fb969c0f73549ba0fdb364b9469614
+        ports: ["3310:3310"]
+        options: >-
+          --health-cmd clamdcheck.sh --health-interval 15s --health-timeout 10s
+          --health-retries 20 --health-start-period 120s
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Compose files follow the hardening policy (no published ports, limits, read-only...)
+        run: |
+          docker compose -p engage-ci --env-file deploy/env/ci-policy.env -f deploy/compose.yml             config --format json | python3 deploy/scripts/check_compose_policy.py app
+          docker compose -f deploy/proxy/compose.yml config --format json             | python3 deploy/scripts/check_compose_policy.py proxy
+      - name: Shell scripts (shellcheck)
+        run: shellcheck --severity=warning deploy/scripts/*.sh
+      - name: Preflight script tests (as root, throwaway values)
+        run: sudo bash deploy/scripts/test_preflight.sh
+      - name: Real ClamAV detects the EICAR test file
+        working-directory: apps/api
+        env:
+          CLAMAV_LIVE_HOST: 127.0.0.1
+        run: |
+          python3 -m pip install "pytest>=9.0.3,<10"
+          python3 -m pytest -p no:cacheprovider --noconftest -rs tests/test_clamav_live.py
+      - name: Build images (placeholder public values; nothing is pushed)
+        run: |
+          docker build -f apps/api/Dockerfile -t engage-api:ci .
+          docker build --build-arg NEXT_PUBLIC_SUPABASE_URL=https://example.invalid             --build-arg NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_ci_placeholder             -t engage-web:ci apps/web
+      - name: Image scan, API (HIGH/CRITICAL with a fix available fail the build)
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8
+        with:
+          scan-type: image
+          image-ref: engage-api:ci
+          scanners: vuln,secret
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+      - name: Image scan, dashboard
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8
+        with:
+          scan-type: image
+          image-ref: engage-web:ci
+          scanners: vuln,secret
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+      - name: Containers run as non-root
+        run: |
+          test "$(docker run --rm --entrypoint id engage-api:ci -u)" = "10001"
+          test "$(docker run --rm --entrypoint id engage-web:ci -u)" = "10001"
   secrets:
     runs-on: ubuntu-latest
     steps:

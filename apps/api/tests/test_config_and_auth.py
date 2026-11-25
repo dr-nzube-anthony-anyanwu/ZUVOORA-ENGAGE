@@ -17,6 +17,16 @@ PROD_BASE = {
     "database_url": "postgresql://engage_api@db.invalid/postgres",
     "widget_token_secret": "placeholder-widget-secret-0123456789abcdef",
     "integrations_encryption_key": "A" * 43,
+    # Phase 6 deployment safety (R2, R8, D5)
+    "dashboard_url": "https://engage.example.com",
+    "api_cors_origins": "https://engage.example.com",
+    "public_api_url": "https://api-engage.example.com",
+    "forwarded_allow_ips": "172.30.0.0/24",
+    "malware_scan_required": True,
+    "clamav_host": "clamav",
+    "email_delivery": "resend",
+    "resend_api_key": "re_placeholder",
+    "email_from": "ZUVOORA Engage <no-reply@engage.example.com>",
 }
 
 
@@ -37,7 +47,7 @@ def test_production_requires_https_supabase():
 
 def test_production_rejects_wildcard_cors():
     with pytest.raises(ValidationError):
-        Settings(**PROD_BASE, api_cors_origins="*")
+        Settings(**{**PROD_BASE, "api_cors_origins": "*"})
 
 
 def test_secrets_not_exposed_in_repr():

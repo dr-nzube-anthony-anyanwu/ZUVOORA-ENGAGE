@@ -66,6 +66,11 @@ class Settings(BaseSettings):
     ai_vision_max_pages: int = Field(default=10, ge=1, le=20)
     ai_vision_max_output_tokens: int = Field(default=1500, ge=200, le=4000)
     ai_vision_timeout_seconds: float = Field(default=40.0, ge=5, le=120)
+    # Pages read at the same time. Together with the timeout this bounds how long an upload can
+    # take: ceil(max_pages / parallel) x timeout must stay within ai_vision_deadline_seconds,
+    # which must stay below the 100-second limit of the Cloudflare proxy (Phase 6, R9).
+    ai_vision_parallel: int = Field(default=5, ge=1, le=8)
+    ai_vision_deadline_seconds: float = Field(default=85.0, ge=10, le=95)
     resend_api_key: SecretStr | None = None
     email_from: str | None = None
     # Transactional email (Phase 4a, ADR-033). "log" never sends (default outside production);
@@ -101,6 +106,45 @@ class Settings(BaseSettings):
     dns_resolvers: str = ""
     dns_timeout_seconds: float = 4.0
     domain_verify_cooldown_seconds: int = 15
+
+    # Reverse proxy (Phase 6, R2). Comma-separated addresses or networks (CIDR) whose
+    # X-Forwarded-For header is trusted: the edge proxy and the dashboard server. Empty = trust
+    # nobody (the direct peer is the visitor). Required in staging and production.
+    forwarded_allow_ips: str = ""
+
+    # Virus scanning of uploads with clamd (Phase 6, D5). Unset host = no scanner. When
+    # required (always in staging and production) uploads are refused while it is unavailable.
+    clamav_host: str | None = None
+    clamav_port: int = Field(default=3310, ge=1, le=65535)
+    clamav_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
+    malware_scan_required: bool = False
+
+    # Worker (Phase 6, R11). The heartbeat file is touched every loop; the container health check
+    # reads it. Scheduled tasks (daily domain re-verification) run only in workers with
+    # WORKER_RUN_SCHEDULES=true — set it on exactly one worker per environment.
+    worker_heartbeat_file: str = "/tmp/engage-worker-heartbeat"  # noqa: S108 - container tmpfs
+    worker_run_schedules: bool = True
+    domain_recheck_every_seconds: int = Field(default=3600, ge=60, le=86400)
+
+    @field_validator("forwarded_allow_ips")
+    @classmethod
+    def valid_proxy_addresses(cls, value: str) -> str:
+        import ipaddress
+
+        entries = [x.strip() for x in value.split(",") if x.strip()]
+        for entry in entries:
+            if entry == "*":
+                continue  # rejected outside development/test by the deployment checks
+            try:
+                ipaddress.ip_network(entry, strict=False)
+            except ValueError as exc:
+                raise ValueError(f"not an IP address or network: {entry!r}") from exc
+        return ",".join(entries)
+
+    @field_validator("clamav_host", mode="before")
+    @classmethod
+    def blank_host_is_unset(cls, value: object) -> object:
+        return None if isinstance(value, str) and not value.strip() else value
 
     @field_validator("supabase_url")
     @classmethod
@@ -149,6 +193,12 @@ class Settings(BaseSettings):
             <= self.ai_budget_global_monthly_usd
         ):
             raise ValueError("AI budgets must satisfy 0 <= tenant daily <= global daily <= monthly")
+        rounds = -(-self.ai_vision_max_pages // self.ai_vision_parallel)
+        if rounds * self.ai_vision_timeout_seconds > self.ai_vision_deadline_seconds:
+            raise ValueError(
+                "AI_VISION_MAX_PAGES / AI_VISION_PARALLEL rounds x AI_VISION_TIMEOUT_SECONDS must "
+                "not exceed AI_VISION_DEADLINE_SECONDS"
+            )
         return self
 
     @model_validator(mode="after")
@@ -223,7 +273,36 @@ class Settings(BaseSettings):
                 raise ValueError("WIDGET_TOKEN_SECRET must be at least 32 characters")
             if "*" in self.cors_origins:
                 raise ValueError("Wildcard CORS origins are not allowed outside development/test")
+            self._enforce_deployment_safety()
         return self
+
+    def _enforce_deployment_safety(self) -> None:
+        """Phase 6 (R2, R8, D5): settings that are easy to forget on a real server."""
+        env = self.app_env
+        if not self.dashboard_url.startswith("https://"):
+            raise ValueError(f"DASHBOARD_URL must use https in {env}")
+        if not self.cors_origins or any(not o.startswith("https://") for o in self.cors_origins):
+            raise ValueError(f"API_CORS_ORIGINS must list https origins only in {env}")
+        if not (self.public_api_url or "").startswith("https://"):
+            raise ValueError(f"PUBLIC_API_URL must be set to an https URL in {env}")
+        trusted = [x.strip() for x in self.forwarded_allow_ips.split(",") if x.strip()]
+        if not trusted:
+            raise ValueError(f"FORWARDED_ALLOW_IPS must list the reverse proxy in {env}")
+        if "*" in trusted or any(x in {"0.0.0.0/0", "::/0"} for x in trusted):
+            raise ValueError("FORWARDED_ALLOW_IPS must not trust every address")
+        if not self.malware_scan_required or self.clamav_host is None:
+            raise ValueError(f"MALWARE_SCAN_REQUIRED=true and CLAMAV_HOST are required in {env}")
+        if env == "production" and self.email_delivery != "resend":
+            raise ValueError("EMAIL_DELIVERY must be resend in production (emails would be lost)")
+
+    @property
+    def api_docs_enabled(self) -> bool:
+        """Interactive API docs only on developer machines, never on a server (R14)."""
+        return self.app_env in {"development", "test"}
+
+    @property
+    def trusted_proxies(self) -> list[str]:
+        return [x.strip() for x in self.forwarded_allow_ips.split(",") if x.strip()]
 
     @property
     def cors_origins(self) -> list[str]:

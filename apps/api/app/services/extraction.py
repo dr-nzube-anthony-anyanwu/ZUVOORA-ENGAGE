@@ -52,6 +52,8 @@ MESSAGES = {
     "timeout": "Processing took too long. Try a smaller or simpler document.",
     "unsupported_encoding": "Text files must be UTF-8 encoded.",
     "extractor_failed": "The document could not be processed.",
+    "malware": "The virus scanner found a threat in this file ({signature}), so it was not "
+               "accepted. Do not open it; ask the sender for a clean copy.",
 }
 
 
@@ -59,6 +61,7 @@ class UploadRejected(Exception):
     def __init__(self, code: str, **details: object) -> None:
         super().__init__(code)
         self.code = code
+        self.details = details
         self.message = MESSAGES.get(code, MESSAGES["extractor_failed"]).format(**details)
 
 

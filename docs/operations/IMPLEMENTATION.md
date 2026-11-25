@@ -15,19 +15,22 @@ and results it is based on. Architecture decisions are referenced as ADR-nnn
 | 3 | Widget, answering, AI, evaluation, inbox; 3g document AI | Accepted 2026-11-22 (3g added and verified the same day) |
 | 4 | Scheduling, booking, webhooks, reminders, email | Accepted 2026-11-22 |
 | 5 | Plans, entitlements, metering, quotas, analytics | Accepted 2026-11-22 |
-| 6 | Hardening, deployment, monitoring, backups, legal review, pilot | Planning: the 6A readiness report and plan were written on 2026-11-24 and await founder approval. **Not complete.** |
+| 6 | Hardening, deployment, monitoring, backups, legal review, pilot | **In progress.** Plan approved; 6B (server hardening) accepted 2026-11-25; 6A (repository readiness) accepted 2026-11-25. **Not complete.** |
 
-**Latest full verification** (local, 2026-11-22, commit `0b19ede`; CI green on `6e8ed2a`):
+**Latest full verification** (local, 2026-11-25, stage 6A, uncommitted working tree):
 
 | Check | Result |
 |---|---|
-| pgTAP (`npx supabase test db`) | 401 / 401 in 15 files |
-| pytest (`apps/api`) | 514 collected: 512 passed, 2 skipped (Linux-only resource-limit tests) |
-| Playwright (`apps/web`, `npm run test:e2e`) | 13 / 13 |
+| pgTAP (`npx supabase test db`) | 419 / 419 in 16 files |
+| pytest (`apps/api`) | 585 collected: 581 passed, 4 skipped (2 Linux-only resource-limit tests, 2 live-ClamAV tests that run in CI) |
+| Playwright (`apps/web`, `npm run test:e2e`) | 20 / 20 |
 | Ruff, ESLint, TypeScript, Next.js build, bundle-secret scan | clean / pass |
-| Semgrep `p/owasp-top-ten` (pinned container) | 0 findings (258 rules, 214 files) |
-| gitleaks (directory scan) | only the reviewed false positive `DEVELOPMENT_BLUEPRINT_FULL.md:130` (allowlisted by fingerprint) |
-| Cloud database | all 17 migrations applied (latest `20261129000001_document_vision.sql`); `db lint` no schema errors |
+| Semgrep `p/owasp-top-ten` (pinned container) | 0 findings |
+| gitleaks (the 43 changed and new files) | no leaks |
+| `npm audit --audit-level=high` (root, web, widget); `pip-audit` | 0 vulnerabilities |
+| Docker images (API, dashboard): Trivy, HIGH/CRITICAL with a fix | 0 (after removing npm from the dashboard runtime and applying Debian security updates) |
+| Hardened stack run locally (`deploy/compose.yml` against local Supabase) | api, worker, web, clamav healthy; no published ports; real ClamAV detects EICAR; worker auto-restarts |
+| Cloud database | 18 migrations applied up to `20261130000001_demo_requests.sql`; `20261201000001_patient_email_reply_to.sql` is local only until CI is green |
 
 **Conventions**
 - "pgTAP" = `supabase/tests`; "API integration" = `apps/api/tests/integration` (real API, real
@@ -217,8 +220,93 @@ in plan §8.
 - **Access:** the founder logs in with an SSH key added through Contabo "Reset credentials".
 - **Decision:** the proxy is Caddy. Hardening steps were tailored in `CONTABO_VPS_SETUP.md` §3.
 
-**Next step:** the founder answers the remaining questions and runs the read-only VPS inspection; then 6A
-code changes begin after approval.
+**6B progress (2026-11-25), founder at the console, guided step by step:**
+- Contabo snapshot taken.
+- All pending updates installed (kernel 6.8.0-151; reboot pending).
+- Admin user `engageadmin` created, in the sudo group, with the founder's SSH key; `sudo` verified.
+- The unused `ubuntu` account is locked, with no login shell.
+- Rebooted into kernel 6.8.0-151.
+- SSH hardened (`/etc/ssh/sshd_config.d/00-engage-hardening.conf`). Verified with `sshd -T`: root login no, password and keyboard-interactive no, X11 no, MaxAuthTries 3, AllowUsers engageadmin. A root login and a password-only login were both refused from the founder's laptop, and the key login as engageadmin works.
+- UFW is active: deny incoming, allow outgoing; 22/tcp LIMIT, 80/tcp and 443/tcp ALLOW (IPv4 and IPv6).
+- fail2ban is active with the sshd jail (5 tries / 10 minutes, 1-hour ban). It banned 2 attacking addresses within seconds of starting.
+- Unattended security upgrades are confirmed on. The old 6.8.0-147 kernel was removed.
+- A 2 GB swap file was added (swappiness 10).
+- Docker 29.10.1 and Compose v5.8.0 were installed from Docker's official apt repository. `/etc/docker/daemon.json` sets json-file logs (10 MB × 3), live-restore and no-new-privileges. The `hello-world` test passed. `engageadmin` is deliberately not in the `docker` group.
+- `/opt/zuvoora-engage/{production,staging}` were created (root only, 700).
+- External TCP check from the founder's network: only 22 is open. 80 and 443 are allowed by UFW but nothing listens yet; 2375, 3073 and 8073 are closed.
+- **6B result: all checks passed; accepted by the founder 2026-11-25.**
+- Ubuntu 26.04 LTS is offered but deliberately **not** applied: 24.04 is supported to 2029, and a release upgrade will be planned separately.
+
+**Remaining questions (2026-11-25):** the founder said "use your recommendation", recorded as D7–D12 in plan §8:
+- **D7:** the production region is the same as staging's.
+- **D8:** public GHCR images.
+- **D9:** Cloudflare Access for the staging dashboard.
+- **D10:** UptimeRobot.
+- **D11:** Backblaze B2.
+- **D12:** provisional retention periods (to be reviewed by a lawyer).
+
+ADR-043 is accepted.
+
+**6A — repository readiness (built and verified locally; accepted by the founder 2026-11-25).**
+
+Code changes:
+- **Settings** (`app/config.py`). Staging and production refuse to start without:
+  - https `DASHBOARD_URL`, CORS origins and `PUBLIC_API_URL`;
+  - a `FORWARDED_ALLOW_IPS` list (not `*` and not 0.0.0.0/0; every entry must be an IP address or network);
+  - `MALWARE_SCAN_REQUIRED=true` with `CLAMAV_HOST`;
+  - `EMAIL_DELIVERY=resend` (production only).
+
+  Interactive API docs now exist only in development and test. The document-reading time bound is enforced through `AI_VISION_PARALLEL` (5) and `AI_VISION_DEADLINE_SECONDS` (85): ceil(pages ÷ parallel) × timeout must fit within the deadline, at most 80 seconds by default (R2, R8, R9, R14).
+- **Visitor address** (`app/middleware.py:install_proxy_headers`). uvicorn's ProxyHeadersMiddleware trusts only the configured networks and takes the right-most untrusted address, and the container runs uvicorn with `--no-proxy-headers`. The dashboard's demo-request action uses the last `X-Forwarded-For` entry (the one set by our proxy) and only if it looks like an IP address (R2).
+- **Virus scanning** (`app/services/malware_scan.py`). A clamd INSTREAM client that fails closed: infected files get 422 `upload_malware` and are audited with `reason=malware` and `signature`. If the scanner is down or required but missing, uploads get 503 `scan_unavailable`. Scanning runs after type detection and before parsing, storage or AI reading (D5).
+- **Worker.**
+  - A heartbeat file plus `python -m app.healthcheck api|worker`.
+  - Hourly scheduled domain re-verification (`WORKER_RUN_SCHEDULES`; idempotent through the 20-hour due rule; failures never stop email).
+- **Email identity** (D3).
+  - Patient booking emails (confirmation, reminder, cancellation) are sent as "<Clinic> via ZUVOORA Engage <platform address>", with a sanitised display name.
+  - When the clinic has **published** an email address, Reply-To is set to it.
+  - Migration `20261201000001_patient_email_reply_to.sql` adds `clinic_email` to `app_private.job_booking()` from the published profile only. Staff alerts are unchanged.
+- **Dashboard.** `/healthz`; standalone output when `NEXT_OUTPUT=standalone` (images only).
+
+Images:
+- **API image:** digest-pinned bases (node 24.22.3-alpine, python 3.12.16-slim), Debian security updates at build time, UID 10001, `HEALTHCHECK`, no Server header.
+- **Dashboard image:** a standalone server only, npm/yarn/corepack removed, UID 10001, `HEALTHCHECK`.
+
+Deployment (`deploy/`):
+- `compose.yml`: api, worker, web and clamav. No published ports; read-only root filesystems with tmpfs; `cap_drop ALL`; no-new-privileges; memory, CPU and process limits; rotated logs; health checks. Fixed private subnets per environment, and the web container receives no env file.
+- `proxy/Caddyfile` and `proxy/compose.yml`: Caddy 2.11, Origin CA TLS, Authenticated Origin Pulls required, X-Forwarded-For replaced with CF-Connecting-IP, 12 MB body limit, 95-second upstream limit, proxy logs without query strings, headers or bodies, unknown hosts aborted.
+- `env/*.env.example`.
+- `scripts/preflight.sh`: names only, never values; checks owner and mode, placeholders, https, production email, and that no secret is shared between staging and production (by hash).
+- `scripts/deploy.sh`: digest-only release in `release.env`, wait for health, smoke checks, automatic rollback, `releases.log`.
+- `scripts/rollback.sh`.
+- `scripts/check_compose_policy.py` and `scripts/test_preflight.sh`.
+
+CI:
+- **`quality.yml`:**
+  - `pip-audit` and `npm audit --audit-level=high` (web, widget);
+  - a new `deployment` job: Compose policy check for both files, shellcheck, preflight tests as root, a **real ClamAV EICAR test** against the pinned scanner image, image builds, Trivy image scans (vulnerabilities and secrets) and a non-root check.
+- **`images.yml` (new):** on a `v*` tag, builds the API image and the staging and production dashboard images, scans them, pushes them to GHCR and prints the exact `deploy.sh` commands with digests. It never deploys.
+
+Evidence (local):
+- Each Compose file passes the policy check, and a mutation check (a published port, `env_file` on web, a writable root filesystem, an extra capability) is caught.
+- The Caddyfile passes `caddy validate` with throwaway certificates.
+- `test_preflight.sh`: 9/9 in an Ubuntu 24.04 container.
+- shellcheck: warnings clean (one style note).
+- Both images build; Trivy initially found 1 HIGH (Debian libzstd, fixed by the security updates) and 6 HIGH in the npm bundled with the Node image (fixed by removing npm from the runtime), and 0 afterwards.
+- The full hardened stack ran locally against the local database:
+  - every container healthy, none publishing a port;
+  - `/health/ready`, the widget loader and the dashboard homepage answered;
+  - the real ClamAV detected EICAR (`Eicar-Test-Signature`) and passed a clean file;
+  - writes to `/app` were refused (read-only), and processes run as uid 10001;
+  - the worker came back after SIGTERM (RestartCount 1), and the scheduled re-check ran.
+- The test stack was then removed.
+
+Not in 6A (planned later):
+- `backup.sh` and the restore check (6G, needing the 6C accounts);
+- retention implementation (R17, from the provisional D12);
+- nonce CSP (R18).
+
+**Next step:** once CI is green, push the migration to the staging database; then 6C (the founder's accounts) and 6D (DNS, proxy and TLS).
 
 Environments and deployment
 - [ ] Separate staging and production (the existing cloud Supabase project becomes staging; a new production project).

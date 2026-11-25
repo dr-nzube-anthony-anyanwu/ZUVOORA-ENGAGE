@@ -49,6 +49,7 @@ from app.services.extraction import (
     extract,
     safe_file_name,
 )
+from app.services.malware_scan import MalwareScanner, ScannerUnavailable
 from app.services.storage import ObjectStore, StorageError
 
 router = APIRouter(prefix="/tenants/{tenant_id}/knowledge", tags=["knowledge"])
@@ -274,6 +275,34 @@ def _read_with_ai(
     )
 
 
+def _scan_for_malware(request: Request, data: bytes) -> None:
+    """Virus scan before anything parses the file (Phase 6, D5). Fails closed when required."""
+    scanner: MalwareScanner | None = getattr(request.app.state, "malware_scanner", None)
+    if scanner is None:
+        if get_settings().malware_scan_required:
+            log.error("malware_scan_unavailable kind=not_configured")
+            raise _scan_unavailable()
+        return
+    try:
+        result = scanner.scan(data)
+    except ScannerUnavailable as exc:
+        log.warning("malware_scan_unavailable kind=%s", exc.kind)
+        if get_settings().malware_scan_required:
+            raise _scan_unavailable() from exc
+        return
+    if not result.clean:
+        raise UploadRejected("malware", signature=result.signature or "unknown")
+
+
+def _scan_unavailable() -> ApiError:
+    return ApiError(
+        503,
+        "scan_unavailable",
+        "Virus scanning is unavailable at the moment, so the file was not accepted. "
+        "Please try again in a few minutes.",
+    )
+
+
 def _screen(
     request: Request,
     db: Database,
@@ -285,6 +314,7 @@ def _screen(
     """Detect type and extract text (by AI for photos/scans); on rejection, audit it and 422."""
     try:
         detected = detect_type(file_name, data)
+        _scan_for_malware(request, data)
         pages = _vision_pages(request, db, principal, tenant_id, detected)
         extraction = extract(detected, data, pages)
         if extraction.images:
@@ -299,7 +329,15 @@ def _screen(
                 "knowledge.upload_rejected",
                 tenant_id=tenant_id,
                 target_type="knowledge_document",
-                metadata={"reason": rejected.code, "size_bytes": len(data)},
+                metadata={
+                    "reason": rejected.code,
+                    "size_bytes": len(data),
+                    **(
+                        {"signature": str(rejected.details.get("signature"))}
+                        if rejected.code == "malware"
+                        else {}
+                    ),
+                },
             )
         raise ApiError(422, f"upload_{rejected.code}", rejected.message) from rejected
 
