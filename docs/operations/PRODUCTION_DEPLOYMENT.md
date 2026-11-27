@@ -189,9 +189,18 @@ real test inboxes receive the mail. Check the worker processed jobs, with none `
 
 1. Take a fresh database backup with `sudo deploy/scripts/backup.sh production` (built in 6G).
    Confirm it uploaded.
-2. Migrate production. Link the CLI to the production project, `db push --dry-run`, read it, then
-   `db push --linked` and `db lint --linked`. Relink to staging afterwards so that day-to-day work
-   cannot touch production by accident.
+2. Migrate production. The CLI is linked to production **only** in the separate folder
+   `D:\technologies\engage-prod-ops`; the repository stays linked to staging. Commands must run
+   **from inside** that folder, because the repository's gitignored `.env` holds the staging
+   `SUPABASE_DB_PASSWORD`, which the CLI would otherwise pick up and use against production:
+   ```powershell
+   Copy-Item D:\technologies\ZUVOORA-ENGAGE\supabase\migrations\*.sql D:\technologies\engage-prod-ops\supabase\migrations\
+   Set-Location D:\technologies\engage-prod-ops
+   $sb = "D:\technologies\ZUVOORA-ENGAGE\node_modules\.bin\supabase.cmd"
+   & $sb db push --linked --dry-run     # read the list; stop if anything unexpected
+   & $sb db push --linked
+   & $sb db lint --linked --level warning
+   ```
 3. Deploy the **same API digest** that staging ran, with the production dashboard image:
    `sudo deploy/scripts/deploy.sh production <api@sha256> <web-production@sha256>`.
 4. Run the smoke tests (automatic), then a manual check: sign in, open one clinic, ask the widget

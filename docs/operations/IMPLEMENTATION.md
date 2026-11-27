@@ -308,7 +308,57 @@ Not in 6A (planned later):
 
 CI on `5112826`: both workflows green. Every job passed, including `deployment` (policy, shellcheck, preflight tests, the real ClamAV EICAR test, image builds, Trivy image scans and the non-root check). Staging database migrated: dry run, push, lint clean.
 
-**Next step:** 6C (the founder's accounts), then 6D (DNS, proxy and TLS).
+**6C progress (2026-11-26):**
+
+Done:
+- **Production Supabase project** `zuvoora-engage-production` created: ref `zitwanfosyhtjmfqjlsm`, region eu-west-1 (the same as staging, D7), Free plan (D2), status ACTIVE_HEALTHY, checked with `supabase projects list`. The organisation now holds two projects, the free maximum.
+- **OpenRouter** staging and production keys.
+- **Backblaze B2** bucket and write-only key.
+- **Resend domain** `engage.zuvoora.com`: already verified on 2026-11-21, so only the keys remain.
+- **2026-11-27:** GitHub repository variables set by the founder (staging and production Supabase URL and publishable key). They will be verified by the first `images` run.
+- **6C complete (2026-11-27).** Open from 6C: the optional email forwarding (6.2b), and making the GHCR packages public after the first release (6.8b).
+- **2026-11-27:** Cal.com and Calendly test accounts created by the founder (no API keys yet).
+- **2026-11-27:** UptimeRobot account created (founder; first monitor `zuvoora.com`; the Engage monitors come after deployment).
+- **2026-11-27:** backup encryption public key (age) received; bech32 checksum verified; stored in `deploy/backup/age-recipients.txt`. The private key is held only by the founder.
+- **2026-11-27:** quick checks confirmed by the founder: 2FA on all provider accounts, SSH key backed up (USB stick and Bitwarden), B2 Object Lock enabled, B2 key write-only.
+- **2026-11-27:** Resend app keys (staging and production) and the production SMTP key created; OpenRouter credit limits confirmed by the founder.
+- **2026-11-27:** SSH shortcut `engage-vps` added to the founder's laptop (appended to the existing config, with a backup).
+- **2026-11-27, Cloudflare read-only check:** the four Engage names are unused; the Resend DNS records exist; the zone SSL mode is Full (automatic) on the Free plan. 6D will add a per-host Configuration Rule for Full (strict) instead of changing the zone-wide mode.
+
+Remaining founder tasks (`PHASE6_FOUNDER_GUIDE.md`, "Where you are now"):
+- quick checks (2FA, key backup, B2 Object Lock and write-only key, OpenRouter limits);
+- 3 Resend keys;
+- the age backup key;
+- UptimeRobot;
+- Cal.com and Calendly test accounts;
+- the Cloudflare read-only look;
+- 4 GitHub variables;
+- after Claude migrates production: 6.1b (engage_api password, API keys, Auth SMTP, Data API).
+
+**Production database migrated (2026-11-26, founder-approved):**
+- **Setup:** a separate CLI work directory `D:\technologies\engage-prod-ops` (outside the repository) holds a copy of `supabase/migrations` and `config.toml`. It is the only place linked to production (`zitwanfosyhtjmfqjlsm`), while the repository stays linked to staging (`fjgthmmntjqdcrkajfaf`). The founder entered the production database password in their own terminal (Job 0).
+- **Dry run:** the first attempt from the repository failed safely ("password authentication failed"). The CLI had read the repository's gitignored root `.env`, which contains the **staging** `SUPABASE_DB_PASSWORD`. Commands now run from inside the work directory; this is documented in `PRODUCTION_DEPLOYMENT.md`, step 5.
+- **Results:** the dry run listed exactly the 19 migrations and no seed. The push applied all 19. `db lint --linked` found no schema errors, and `migration list` shows local = remote for all 19. The local demo seed was not applied.
+- **Bitwarden:** account created by the founder.
+
+**Production Auth configured (2026-11-27):**
+- **Founder (Step 6.1b):**
+  - Job A: `engage_api` password.
+  - Job B: publishable and secret keys plus the pooler host, saved in Bitwarden.
+  - Job C: Auth custom SMTP through Resend with a production-only sending key, rate limit 30 per hour.
+  - Job D: `public` removed from the Data API.
+- **Claude, via `config push`:**
+  - Run from `engage-prod-ops`, whose `config.toml` copy differs from the repository's only in `site_url` and `additional_redirect_urls` (`https://engage.zuvoora.com`, `/auth/confirm`) and `email_sent` (30).
+  - The diff was reviewed first. It showed the new-project defaults still in place: **sign-ups enabled**, minimum password length 6, `site_url` localhost, the default invitation template.
+  - Pushed: sign-ups off, minimum password length 12 with lower, upper and digits, secure password change, the site URL and redirect, the invitation subject and template, a 10 MiB storage file limit.
+- **Verified afterwards (`config diff`):**
+  - every declared Auth setting matches;
+  - SMTP remains enabled and unchanged (host `smtp.resend.com`, port 465, user `resend`, sender `no-reply@engage.zuvoora.com`), held only remotely because its password is never in files;
+  - TOTP MFA is on (no difference);
+  - remaining differences are only the pooler sizes, which are dashboard-only and the defaults are fine.
+- **Not verifiable by tool:** Job A (the role password), Job B (the keys) and Job D (Data API schemas: the CLI does not manage `api.schemas`). These rest on the founder's confirmation; Job D will be checked from outside in 6E.
+
+**Next step:** 6D (DNS, proxy and TLS).
 
 Environments and deployment
 - [ ] Separate staging and production (the existing cloud Supabase project becomes staging; a new production project).

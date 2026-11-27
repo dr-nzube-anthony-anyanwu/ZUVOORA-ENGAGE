@@ -53,7 +53,8 @@ single-level names.
 | Snapshots | None yet |
 | Ubuntu version | **24.04.5 LTS** (from the inspection on 2026-11-25) |
 | What runs on it | **Nothing.** A fresh server: no Docker, no web server, no ZUVOORA application. Only SSH listens. |
-| Security today | UFW off; root and password SSH login on; no fail2ban; 21 updates waiting; no swap. The founder logs in with an SSH key added through Contabo. |
+| Security today | UFW off; root and password SSH login on; no fail2ban; 21 updates waiting; no swap. The founder logs in with an SSH key added through Contabo. (All fixed in 6B, 25 Nov.) |
+| Cloudflare (`zuvoora.com`, Free plan; checked by the founder 27 Nov) | `engage`, `api-engage`, `staging-engage` and `staging-api-engage` are unused. The Resend records under `engage` exist (`send`, `resend._domainkey`, `rsend`, `_dmarc`) and must stay untouched. The zone SSL mode is **Full** (Automatic SSL/TLS), and the zone already serves other traffic. **6D decision:** leave the zone mode unchanged; set **Full (strict)** for the four Engage host names only with a Configuration Rule. |
 
 The IP address is deliberately not recorded in this public repository.
 

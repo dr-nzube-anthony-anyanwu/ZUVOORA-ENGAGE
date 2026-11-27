@@ -12,6 +12,47 @@ accounts, your money or your secrets.
 > first ("staging"), test it, and only then build the **real copy** ("production") for the three
 > pilot clinics.
 
+
+## ⭐ Where you are now (updated 2026-11-26)
+
+**Already done ✅**
+
+| What | When |
+|---|---|
+| Server checked, then made safe: admin user `engageadmin`, SSH key login, firewall, fail2ban, updates, Docker, swap (Parts 2, 2b and 5) | 25 Nov |
+| Contabo snapshot taken | 25 Nov |
+| All founder questions answered (Part 4) | 24–25 Nov |
+| **6.1** Production database created: `zuvoora-engage-production`, region `eu-west-1`, the same as staging. Claude checked it: healthy. | 26 Nov |
+| **6.3** OpenRouter keys (staging and production) | 26 Nov |
+| **6.4** Backblaze B2 backup bucket and key | 26 Nov |
+| The email domain `engage.zuvoora.com` was verified in Resend back on 21 Nov, and the staging database already sends its emails through it | 21 Nov |
+| Bitwarden account created | 26 Nov |
+| SSH shortcut `ssh engage-vps` | 27 Nov |
+| **6.2** Resend keys: `engage-staging-app`, `engage-production-app`, `engage-production-supabase-smtp` | 27 Nov |
+| OpenRouter credit limits confirmed | 27 Nov |
+| **6.8a** GitHub repository variables (4 public values) | 27 Nov |
+| **6.7** Cal.com and Calendly test accounts | 27 Nov |
+| **6.6** UptimeRobot account (monitoring `zuvoora.com` for now) | 27 Nov |
+| **6.5** Backup padlock (public key) received and saved; the private key stays with you | 27 Nov |
+| Quick checks: two-factor login on every account, SSH key backed up (USB stick and Bitwarden), B2 Object Lock on, B2 key write-only | 27 Nov |
+| **6.1b** Production database finished (Jobs A–D). Claude then set the login rules: sign-ups **off** (they were open), passwords of at least 12 characters with mixed case and digits, the invitation email, the website addresses and a 10 MB upload limit. Checked: email sending through Resend works and two-factor login is on. | 27 Nov |
+| **Part 3** Cloudflare looked at: the four Engage names are free; the Resend email records exist; SSL mode is "Full" (automatic) on the Free plan | 27 Nov |
+| Production database linked (Job 0), and Claude copied in the full database structure: all 19 migrations, schema check clean | 26 Nov |
+
+**Still to do, in this order 👇** (each one is explained step by step further down)
+
+| # | Task | Time | Where in this guide |
+|---|---|---|---|
+| — | **Stage 6C is complete.** Next: Part 8 (web addresses and the padlock), together with Claude. | | |
+
+**Later (Claude will tell you when):** official email addresses (6.2b, optional), making the
+GitHub images public (6.8b), putting secrets on the server (Part 7), web addresses and the
+padlock (Part 8), testing staging (Part 9).
+**Start soon, because it takes time:** find a lawyer (Part 10), and talk to the pilot clinics
+(Part 11).
+
+When you finish a task, tell Claude its number, for example "task 2 done". Never paste a key.
+
 ---
 
 ## Part 0 — Golden rules (read these first)
@@ -38,7 +79,10 @@ are none, because the commands in this guide never print them.
 
 ## Part 1 — Get ready (about 30 minutes) — do now
 
-### Step 1.1 — Install a password manager
+### Step 1.1 — Install a password manager ✅
+
+> ✅ **Done (26 Nov).** Bitwarden account created. Step 1.2 (two-factor login everywhere) is
+> checked in the quick checks of Part 6.
 1. Go to **bitwarden.com** and create a free account. Choose a long master password you can
    remember, and write it on paper kept somewhere safe at home.
 2. Install the Bitwarden app on your phone and the browser extension on your laptop.
@@ -62,9 +106,11 @@ Save each account's **recovery codes** in Bitwarden.
 
 ---
 
-## Part 2 — Look at your server, without changing anything (about 20 minutes) — do now
+## Part 2 — Look at your server, without changing anything ✅ DONE
+> ✅ **Done (25 Nov).** You found the server details, logged in, ran the read-only inspection and shared the results. The server is Ubuntu 24.04.5, 6 cores, 12 GB, empty. Kept below as reference.
 
-### Step 2.1 — Find your server's details in Contabo
+
+### Step 2.1 — Find your server's details in Contabo ✅
 1. Log in at **my.contabo.com**.
 2. Click **Your services** and find the Cloud VPS.
 3. Write down, in Bitwarden as a note (not in the chat):
@@ -79,7 +125,9 @@ Save each account's **recovery codes** in Bitwarden.
 Avoid posting screenshots of the Contabo page in public places, because they show the IP and the
 VNC address.
 
-### Step 2.2 — Connect to the server
+### Step 2.2 — Connect to the server ✅
+> ✅ **Done (25 Nov).** The password route failed, so you switched to an **SSH key** (the "log in with an SSH key instead" part). That key is how you log in now; see Part 2b. These steps are only needed again on a new laptop or after losing the key. Kept below as reference.
+
 1. On your laptop press the **Windows key**, type **PowerShell** and open it.
 2. Type the following, replacing the two words in CAPITALS, then press Enter:
    ```powershell
@@ -162,7 +210,7 @@ An SSH key replaces the server password. Stage 6B switches to keys in any case.
 - **Still denied after a password reset:** wait 5 minutes and try again. If it still fails, send
   Claude the exact message on the screen; it contains no secrets.
 
-### Step 2.3 — Run the inspection
+### Step 2.3 — Run the inspection ✅
 1. Open [CONTABO_VPS_SETUP.md](CONTABO_VPS_SETUP.md), section 1.
 2. Copy the **big block** that starts with `{` and ends with `Saved to ~/engage-inspection.txt"`.
 3. Paste it into the server window. In PowerShell, right-click pastes. Press Enter.
@@ -171,14 +219,14 @@ An SSH key replaces the server password. Stage 6B switches to keys in any case.
 
 This block **only reads** information. It does not change, stop or delete anything.
 
-### Step 2.4 — Bring the results to your laptop
+### Step 2.4 — Bring the results to your laptop ✅
 In PowerShell on your laptop, not on the server:
 ```powershell
 scp YOUR_USERNAME@YOUR_VPS_IP:~/engage-inspection.txt $HOME\Desktop\engage-inspection.txt
 ```
 Type the password again. A file called **engage-inspection.txt** appears on your Desktop.
 
-### Step 2.5 — Hide private details and share
+### Step 2.5 — Hide private details and share ✅
 1. Open the file in Notepad.
 2. Replace every IP address with `[REDACTED]`.
 3. Paste the whole text into the chat with Claude, together with the plan details from step 2.1.
@@ -187,7 +235,9 @@ Type the password again. A file called **engage-inspection.txt** appears on your
 
 ---
 
-## Part 2b — How to log in to your server (every time, with your SSH key)
+## Part 2b — How to log in to your server (every time, with your SSH key) ✅ in use
+> ✅ **Done (25 Nov).** You log in with `ssh engageadmin@...` and your key passphrase, and you use `sudo -v` and one-line pastes. Still open: the optional shortcut and passphrase memory, and **backing up the key** (in the quick checks, Part 6). Kept below as reference.
+
 
 Since 2026-11-25 you log in with your **SSH key**, not a password. The key lives on your laptop
 in `C:\Users\User\.ssh\`:
@@ -234,26 +284,44 @@ Claude gives server commands as single lines, joined with `&&` where needed.
 
 ### Shortcut: type `ssh engage-vps` instead of the IP (optional, do once)
 This saves the server's details in a small settings file on your laptop.
-1. In PowerShell, check whether the file already exists:
+> ✅ **Done (27 Nov).** `ssh engage-vps` logs in as `engageadmin`. The entry was added at the end
+> of the existing `config` file, which also holds another server's entry and VS Code's unused
+> `Host alias` example; both were left unchanged. A safety copy is at `.ssh\config.backup`. Kept
+> below as reference, for example for a new laptop.
+
+1. Open **PowerShell** (Windows key → type `PowerShell` → Enter).
+2. Make a safety copy of the file first:
    ```powershell
-   Test-Path $HOME\.ssh\config
+   Copy-Item $HOME\.ssh\config $HOME\.ssh\config.backup
    ```
-   If it says **True**, stop and ask Claude, so that nothing in it is overwritten.
-2. If it says **False**, paste this, with your real IP in place of `YOUR_VPS_IP`, and press Enter:
+3. Open the file in Notepad:
    ```powershell
-   @"
+   notepad $HOME\.ssh\config
+   ```
+4. In Notepad, click at the **very end** of the text, press **Enter twice** for an empty line,
+   then type (or paste) these five lines. Put your server's real IP address (from Bitwarden) in
+   place of `YOUR_VPS_IP`. The spaces at the start of lines 2–5 are fine as they are:
+   ```text
    Host engage-vps
        HostName YOUR_VPS_IP
-       User root
+       User engageadmin
        IdentityFile ~/.ssh/id_ed25519
        ServerAliveInterval 60
-   "@ | Set-Content -Encoding ascii $HOME\.ssh\config
    ```
-3. From now on, just type `ssh engage-vps`.
-4. **After stage 6B**, change `User root` to `User engageadmin`. Run `notepad $HOME\.ssh\config`,
-   edit that line, save and close.
+5. Press **Ctrl+S** to save, then close Notepad.
+6. Test it in PowerShell:
+   ```powershell
+   ssh engage-vps
+   ```
+   Type your key passphrase as usual. You should land at `engageadmin@vmi3748133:~$`. Type `exit`
+   to leave.
+7. If something goes wrong, put the old file back with
+   `Copy-Item $HOME\.ssh\config.backup $HOME\.ssh\config -Force`.
 
 ### Type the passphrase less often (optional)
+> **Status (27 Nov): not done.** It is optional. The Windows helper `ssh-agent` is currently
+> switched off ("Disabled"). If you are happy typing the passphrase each time, skip this.
+
 Windows can remember the unlocked key until you sign out of Windows. Open PowerShell **as
 administrator** (right-click PowerShell → *Run as administrator*) and run:
 ```powershell
@@ -271,10 +339,28 @@ scp root@YOUR_VPS_IP:~/FILE_NAME $HOME\Desktop\FILE_NAME
 With the shortcut: `scp engage-vps:~/FILE_NAME $HOME\Desktop\FILE_NAME`.
 
 ### Back up your key (do this today)
-If your laptop is lost or broken, the key goes with it.
-1. Copy `C:\Users\User\.ssh\id_ed25519` and `id_ed25519.pub` to a USB stick kept somewhere safe.
-2. Also attach `id_ed25519` to a Bitwarden item called "Engage VPS SSH key", together with its
-   passphrase.
+> ✅ **Done (27 Nov).** Key backed up to a USB stick and to Bitwarden (confirmed by you).
+
+If your laptop is lost or broken, the key goes with it, and you would need the Contabo panel to
+get back in.
+1. Plug in a USB stick. Open **File Explorer** and note its drive letter, for example `E:`.
+2. In PowerShell (put your drive letter in place of `E:`):
+   ```powershell
+   New-Item -ItemType Directory -Force E:\engage-ssh-key | Out-Null
+   Copy-Item $HOME\.ssh\id_ed25519, $HOME\.ssh\id_ed25519.pub E:\engage-ssh-key\
+   Get-ChildItem E:\engage-ssh-key
+   ```
+   You should see both files listed. Eject the USB stick safely and keep it somewhere safe at home.
+3. In **Bitwarden**: **New** → **Login** (or **Secure note**) → name it **"Engage VPS SSH key"**.
+   - Put the key's **passphrase** in the password or notes field.
+   - Click **Attachments** → **Choose file** → pick `C:\Users\User\.ssh\id_ed25519` → **Save**.
+     File attachments need Bitwarden Premium (about $10 a year). If you are on the free plan,
+     open the file with `notepad $HOME\.ssh\id_ed25519`, copy **all** its text, from
+     `-----BEGIN` to `-----END ... -----`, and paste it into the item's **Notes**. Close Notepad
+     **without changing anything**.
+4. The key is useless without its passphrase, and the passphrase is useless without the key.
+   Keeping both in Bitwarden (protected by your master password and 2FA) plus the key on a USB
+   stick is the safe combination.
 
 ### If you ever lose the key or cannot log in
 - Make a new key (step 2.2, "log in with an SSH key instead") and add it in Contabo: **Reset
@@ -284,7 +370,19 @@ If your laptop is lost or broken, the key goes with it.
 
 ---
 
-## Part 3 — Look at your Cloudflare settings, without changing anything (about 10 minutes) — do now
+## Part 3 — Look at your Cloudflare settings, without changing anything ✅ DONE
+
+> ✅ **Done (27 Nov).** Results:
+> - `engage`, `api-engage`, `staging-engage` and `staging-api-engage` do **not** exist yet, so
+>   they are free to use.
+> - The Resend email records under `engage` exist: `send.engage`, `resend._domainkey.engage`,
+>   `rsend.engage` and `_dmarc.engage`. **Never change or delete them**, or Engage emails stop.
+> - SSL/TLS mode for the whole `zuvoora.com` domain: **Full**, chosen by Cloudflare's automatic
+>   mode. Plan: Free. The domain already receives some visits.
+>
+> Decision for Part 8: leave the domain-wide mode alone, so nothing else on `zuvoora.com` is
+> affected. Add one Cloudflare **Configuration Rule** that sets **Full (strict)** for the four
+> Engage addresses only.
 
 1. Log in at **dash.cloudflare.com** and click **zuvoora.com**.
 2. Click **DNS → Records**. Check whether any of these names already exist, and write down "exists"
@@ -303,7 +401,9 @@ If your laptop is lost or broken, the key goes with it.
 
 ---
 
-## Part 4 — Answer the founder questions — do now
+## Part 4 — Answer the founder questions ✅ DONE
+> ✅ **Done (24–25 Nov).** All questions are answered. The decisions D1–D12 are in the deployment plan, §1a and §8. Kept below as reference.
+
 
 Open [PHASE6_DEPLOYMENT_PLAN.md](PHASE6_DEPLOYMENT_PLAN.md) section 8 and answer the questions in
 the chat. Short answers are fine, for example "Q2: same server is OK" or "Q3: yes, Pro". If you are
@@ -324,12 +424,14 @@ unsure, say "use your recommendation" and Claude will explain it first.
 
 ---
 
-## Part 5 — Make your server safer (stage 6B) — after approval
+## Part 5 — Make your server safer (stage 6B) ✅ DONE
+> ✅ **Done (25 Nov, accepted by you).** Snapshot taken; SSH key; admin user `engageadmin`; root and password login off; firewall on (22, 80, 443 only); fail2ban; automatic security updates; 2 GB swap; Docker; the `/opt/zuvoora-engage` folders. Claude checked from outside that only SSH answers. Kept below as reference.
+
 
 Claude gives you **exact commands tailored to your server** after reading your inspection results.
 These steps prepare you for that.
 
-### Step 5.1 — Take a snapshot (a "save point")
+### Step 5.1 — Take a snapshot (a "save point") ✅
 1. In Contabo, open your VPS → **Snapshots** → **Create snapshot**. Name it
    `before-engage-hardening`.
 2. Wait until it says it is finished.
@@ -339,7 +441,7 @@ These steps prepare you for that.
 
 This is the "undo button" for the whole server.
 
-### Step 5.2 — Make your own SSH key (on your laptop only)
+### Step 5.2 — Make your own SSH key (on your laptop only) ✅
 An SSH key is like a special door key. It is much safer than a password.
 1. In PowerShell on your **laptop**:
    ```powershell
@@ -353,11 +455,14 @@ An SSH key is like a special door key. It is much safer than a password.
    - `id_ed25519.pub`, the **public** key. This one is safe to put on the server.
 5. To see the public key: `Get-Content $HOME\.ssh\id_ed25519.pub`
 
-### Step 5.3 — Find the "emergency door"
+### Step 5.3 — Find the "emergency door" ✅
+
+> The Contabo panel shows **VNC: Enabled**, and that is your emergency door. Make sure you know
+> how to open it: your VPS → **VNC** in the server box. It never needs the SSH key.
 In Contabo, open your VPS and find **VNC** or **Console** access. Write down how to open it. If a
 mistake ever blocks normal login, this console still works.
 
-### Step 5.4 — Run Claude's hardening commands
+### Step 5.4 — Run Claude's hardening commands ✅
 - Keep **two PowerShell windows** connected to the server.
 - Run one command group at a time, and paste the result (redacted) to Claude after each.
 - Test a new login in a second window **before** closing the first.
@@ -367,133 +472,244 @@ mistake ever blocks normal login, this console still works.
 
 ---
 
-## Part 6 — Create the accounts and keys (stage 6C) — after approval
+## Part 6 — Create the accounts and keys (stage 6C)
 
-You can do 6.1 to 6.7 in any order. **Every secret goes straight into Bitwarden.** Never into
-the chat.
+**Every key goes straight into Bitwarden. Never into the chat.** A "key" here is like a password
+that lets a program use a service. Most services show a key **only once**, so copy it into
+Bitwarden right away, before you close the window.
 
-### Step 6.1 — Create the production database (Supabase)
-1. Log in at **supabase.com/dashboard**.
-   - **First, count your projects.** The free plan allows only **two active free projects**. If
-     you already have two (for example the Engage staging project plus a project for the main
-     ZUVOORA app), stop and tell Claude before creating anything.
-2. Click **New project**, inside the same organisation as the existing Engage project.
-   - Name: `zuvoora-engage-production`
-   - Database password: click **Generate a password**, then **copy it into Bitwarden right
-     away**, named "Supabase production DB password".
-   - Region: **the same region as your existing Engage project**, unless Claude advises otherwise
-     after seeing the server region.
-3. Stay on the **Free** plan for now (your decision). That means Supabase keeps **no backups** for
-   you. Our own nightly backup (6.4 and 6.5) is the only safety copy, so those two steps are a
-   must. Upgrade to Pro when paying clinics arrive.
-4. Tell Claude: "production project created", plus the **project reference**. That is the short
-   code in the project's web address (`supabase.com/dashboard/project/<this part>`). It is not a
-   secret.
+### Quick checks (5 minutes) ✅ all done 27 Nov
+Tick each one. If one is not done, do it now; the "How" column explains.
 
-Claude then guides you through the Auth settings: turning sign-ups off, the website address, the
-email sender and two-factor login.
+| ✓ | Check | How |
+|---|---|---|
+| ✅ | Bitwarden has a folder **ZUVOORA Engage** holding every password and key from these steps | Step 1.1 |
+| ✅ | Two-factor login (a code from your phone) is on for GitHub, Cloudflare, Contabo, Supabase, OpenRouter, Backblaze and Resend | Step 1.2. Look for "Two-factor", "2FA" or "Security" in each site's account settings. |
+| ✅ | Your SSH key is backed up: `C:\Users\User\.ssh\id_ed25519` is on a USB stick **and** attached in Bitwarden with its passphrase | Part 2b, "Back up your key" |
+| ✅ | **Backblaze:** the bucket shows **Object Lock: Enabled** | Backblaze → Buckets → your bucket. If it says disabled, tell Claude; the bucket must be recreated, because Object Lock can only be switched on at creation. |
+| ✅ | **Backblaze:** the key `engage-server-backup` is **Write Only** and limited to that one bucket | Backblaze → Application Keys. If it says "Read and Write", delete it and make a new one (Step 6.4). |
+| ✅ | **OpenRouter:** each key has a **credit limit** ($1 staging, $5 production). Confirmed 27 Nov. | openrouter.ai → Settings → API Keys → the pencil next to each key |
 
-### Step 6.2 — Set up email sending (Resend)
-1. Log in at **resend.com** (create an account if needed).
-2. **Domains → Add domain.** Type `engage.zuvoora.com`.
-   - Why not your Gmail? Email services can only send *from* a domain you own. Gmail belongs to
-     Google, so emails "from" a Gmail address sent by Resend would be blocked or marked as spam.
-   - Emails will come from `ZUVOORA Engage <no-reply@engage.zuvoora.com>`. Your Gmail receives
-     the alerts and replies. You type it into the server settings yourself (Part 7); it is never
-     written into the code.
-   - A clinic's emails to patients show **the clinic's name**, and when a patient presses
-     "Reply", the answer goes **to the clinic**, not to you.
-3. Resend shows some DNS records. Choose **"Sign in to Cloudflare"** (automatic setup) if offered;
-   otherwise Claude helps you add them by hand.
-4. Wait until the domain shows **Verified**.
-5. **API Keys → Create API key**, three times:
-   - `engage-staging`: permission **Sending access**, domain = your sending domain
-   - `engage-production`: same settings
-   - `engage-supabase-smtp`: same settings. Supabase uses this to send login and invitation emails.
-6. Each key is shown **only once**. Copy each into Bitwarden immediately.
-7. The free Resend plan allows **100 emails a day**, shared by staging, production and login
-   emails. That is enough to start, and Claude sets up an alert before the limit is reached.
+### Step 6.1 — Create the production database (Supabase) ✅ done 26 Nov
+Project `zuvoora-engage-production` (reference `zitwanfosyhtjmfqjlsm`), region `eu-west-1`, Free
+plan. Its database password must be in Bitwarden as "Supabase production DB password".
+Because you are on the Free plan, Supabase keeps **no backups** for you. That is why steps 6.4
+and 6.5 matter so much.
 
-### Step 6.2b — Official addresses that forward to your Gmail (free, optional)
-This lets you show `support@engage.zuvoora.com` or `admin@engage.zuvoora.com` today, with the
-emails arriving in your Gmail.
-1. In Cloudflare open **zuvoora.com** → **Email** → **Email Routing**.
-2. Follow the screens to enable it, and add your Gmail as the **destination address**. Google
-   sends you a confirmation email; click the link in it.
-3. Create the addresses, for example `support@engage.zuvoora.com` → your Gmail.
+### Step 6.1b — Finish the production database ✅ done 27 Nov
+**Job 0 (first, once): let Claude's database tool into the production database** ✅ done 26 Nov
+Claude's tool needs the production **database password** once. Only you have it, and it must not
+go through the chat.
+1. Open **PowerShell** on your laptop. Type these two lines, pressing Enter after each:
+   ```powershell
+   cd D:\technologies\ZUVOORA-ENGAGE
+   npx supabase --workdir D:\technologies\engage-prod-ops link --project-ref zitwanfosyhtjmfqjlsm
+   ```
+   ⚠️ Since 26 Nov Claude runs this **from inside** `D:\technologies\engage-prod-ops`. The
+   project folder's own `.env` file holds the **staging** password, and the tool would
+   wrongly use it.
+2. It asks `Enter your database password`. In Bitwarden, copy **"Supabase production DB
+   password"**, **right-click once** in PowerShell to paste it (nothing appears; that's normal),
+   then press **Enter**.
+3. You should see `Finished supabase link`. The tool remembers the password safely on your laptop.
+   The folder `engage-prod-ops` is kept separate on purpose, so normal work can never touch
+   production by accident.
+4. Tell Claude **"production linked"**.
 
-Claude checks the records with you before you click "Add records", so that nothing used by the
-main ZUVOORA email is changed.
+If it says "password authentication failed", the password does not match. Reset it in Supabase:
+**Project Settings → Database → Reset database password**, save the new one in Bitwarden, and try
+step 1 again.
 
-### Step 6.3 — AI keys with a spending limit (OpenRouter)
-1. Log in at **openrouter.ai** → **Settings → API Keys → Create key**.
-2. Create two keys, and give each a **credit limit**:
-   - `engage-staging`, limit **$1**
-   - `engage-production`, limit **$5** to start. AI is switched on at launch, as you chose; raise
-     the limit later when you see real usage.
-3. Copy each key into Bitwarden.
+✅ **The production database is ready** (26 Nov: 19 migrations applied, schema check clean).
+Now do these four small jobs on
+**supabase.com/dashboard → project `zuvoora-engage-production`**. Check the project name at the
+top of the page every time, so you do not change the staging project by mistake.
 
-The limit is a hard ceiling. Even if something went wrong, it cannot spend more than that.
+**Job A — Give the app its own database password**
+1. In Bitwarden, generate a new password: **letters and numbers only**, 32 characters. Save it as
+   "Supabase production engage_api password".
+2. In Supabase, click **SQL Editor** in the left menu, then **New query**.
+3. Type this, putting your new password between the quote marks:
+   ```sql
+   alter role engage_api with password 'PASTE_THE_NEW_PASSWORD_HERE';
+   ```
+4. Click **Run**. You should see "Success. No rows returned".
+5. Close the query **without saving it**: click the "⋯" next to it, then Delete, so the password
+   is not stored there.
 
-### Step 6.4 — Backup storage (Backblaze B2, recommended)
-B2 is recommended because it can give the server a key that can **add** backups but cannot
-**read or delete** them.
-1. Create an account at **backblaze.com** (B2 Cloud Storage).
-2. **Buckets → Create a bucket:**
-   - Name: `zuvoora-engage-backups-<random word>`
-   - Files: **Private**
-   - **Object Lock: Enable.** This stops anyone deleting backups early. It can only be turned on
-     now, at creation.
-3. **Application Keys → Add a new application key:**
-   - Name: `engage-server-backup`
-   - Bucket: only the new bucket
-   - Type of access: **Write Only**
-4. Copy the **keyID** and **applicationKey** into Bitwarden. They are shown once.
+**Job B — Copy the two project keys into Bitwarden**
+1. Click **Project Settings** (the cog at the bottom left) → **API Keys**.
+2. **Publishable key** (starts `sb_publishable_`): copy it into Bitwarden as "Supabase production
+   publishable key". This one is public: it is safe in GitHub (Step 6.8a) and you may share it.
+3. **Secret keys**: click **Create new secret key**, name it `engage-production-server`, then copy
+   it into Bitwarden as "Supabase production secret key". It starts `sb_secret_`.
+   **Never share this one or put it in GitHub.**
+4. Still in Project Settings, open **Database → Connection string → Session pooler**. Copy the
+   **host name** (it looks like `aws-0-eu-west-1.pooler.supabase.com`) into the same Bitwarden
+   note. You will need it in Part 7.
 
-### Step 6.5 — Backup encryption key (on your laptop)
-This key lets **only you** open the backups.
-1. In PowerShell on your laptop: `winget install FiloSottile.age`, then close and reopen
-   PowerShell.
-2. Create the key:
+**Job C — Let the database send login emails through Resend** (needs Step 6.2 first)
+1. Click **Authentication** (the people icon) → **Emails** → the **SMTP Settings** tab.
+2. Turn on **Enable custom SMTP** and fill in:
+   - Sender email: `no-reply@engage.zuvoora.com`
+   - Sender name: `ZUVOORA Engage`
+   - Host: `smtp.resend.com`
+   - Port: `465`
+   - Username: `resend`
+   - Password: the Resend key **`engage-production-supabase-smtp`** from Bitwarden (Step 6.2)
+3. Click **Save**.
+4. Go to **Authentication → Rate Limits**. Set "Rate limit for sending emails" to **30** per hour,
+   then click **Save**.
+
+**Job D — Close the side door**
+1. **Project Settings → Data API**.
+2. In **Exposed schemas**, remove `public` (click the little x), then click **Save**. Our app does
+   not use this door, and closing it is extra safety.
+
+Then tell Claude: **"6.1b done"**. Claude then sets the remaining login rules: sign-ups off,
+two-factor login, password rules, the invitation email and the website addresses. Claude
+checks everything too.
+
+### Step 6.2 — Email keys (Resend) ✅ done 27 Nov
+**Good news: the domain `engage.zuvoora.com` is already verified** (since 21 Nov), and the
+staging database already sends its login emails through it. You only need three new keys.
+
+1. Go to **resend.com** and log in.
+2. Click **Domains** and check that `engage.zuvoora.com` shows **Verified** (green). If it does
+   not, stop and tell Claude.
+3. Click **API Keys** → **Create API Key**. Fill in:
+   - Name: `engage-staging-app`
+   - Permission: **Sending access** (not "Full access")
+   - Domain: **engage.zuvoora.com**
+   - Click **Add**. Copy the key (it starts `re_`) into Bitwarden as "Resend staging app key".
+4. Do it again with the name `engage-production-app` and save it as "Resend production app key".
+5. Do it again with the name `engage-production-supabase-smtp` and save it as "Resend production
+   SMTP key". The production database uses this one to send login and invitation emails
+   (Step 6.1b, Job C).
+6. You should now see these keys in the list, plus the older one the staging database already
+   uses. **Do not delete the older one**: staging login emails would stop.
+
+Why not send from your Gmail? Email services can only send *from* a domain you own. Emails come
+from `ZUVOORA Engage <no-reply@engage.zuvoora.com>`, and your Gmail **receives** the alerts. You
+type your Gmail into the server settings yourself in Part 7; it is never written into the code.
+A clinic's emails to patients show **the clinic's name**, and a patient's "Reply" goes **to the
+clinic**.
+
+The free Resend plan allows **100 emails a day**, shared by everything. That is enough to start.
+
+### Step 6.2b — Official addresses that forward to your Gmail (optional, later)
+This lets you show `support@engage.zuvoora.com` today, with the emails arriving in your Gmail.
+**Do this together with Claude**, because it adds email records to Cloudflare and must not
+touch the records Resend already uses.
+1. Cloudflare → **zuvoora.com** → **Email** → **Email Routing**.
+2. Follow the screens. Add your Gmail as the **destination address**, then click the
+   confirmation link Google emails you.
+3. Create an address such as `support@engage.zuvoora.com`, forwarding to your Gmail.
+
+### Step 6.3 — AI keys with a spending limit (OpenRouter) ✅ done 26 Nov
+Two keys, `engage-staging` ($1 limit) and `engage-production` ($5 limit), saved in Bitwarden.
+Confirm the limits in the quick checks above.
+
+### Step 6.4 — Backup storage (Backblaze B2) ✅ done 26 Nov
+A bucket with Object Lock and a **write-only** key `engage-server-backup`. The keyID and
+applicationKey are in Bitwarden. Confirm both settings in the quick checks above. Also write down
+(not secret, Bitwarden note is fine) the **bucket name** and the **Endpoint** shown on the bucket
+page (it looks like `s3.eu-central-003.backblazeb2.com`). Claude needs both later; they are
+safe to tell Claude.
+
+### Step 6.5 — Backup encryption key (on your laptop) ✅ done 27 Nov
+
+> ✅ The public key (`age1ht2k...6uklp`) is saved in `deploy/backup/age-recipients.txt`; its
+> checksum was verified. **Make sure** the private key file is on **two USB sticks and in
+> Bitwarden**, and that you deleted it from Documents and emptied the Recycle Bin.
+Think of it as a padlock and its key. The server gets the **padlock** (the public key): it can
+lock backups but never open them. Only **you** keep the **key** (the private key), so only you
+can open a backup.
+
+1. Open **PowerShell** on your laptop. This is your laptop, not the server.
+2. Install the small "age" program by typing this and pressing Enter:
+   ```powershell
+   winget install FiloSottile.age
+   ```
+   If it asks to agree to terms, type `Y` and press Enter.
+3. **Close PowerShell and open it again** so it can find the new program.
+4. Make the padlock and key:
    ```powershell
    age-keygen -o $HOME\Documents\engage-backup-key.txt
    ```
-3. It prints a line starting with `Public key: age1...`. **The public key is safe to share.**
-   Give it to Claude; it goes on the server.
-4. The file `engage-backup-key.txt` is the **private** key:
-   - Copy it to **two USB sticks** kept in different safe places, **and** into Bitwarden (as an
-     attachment or secure note).
-   - Then delete it from Documents.
-   - If you lose it, nobody can ever open the backups, including you.
+5. It prints one line that starts with `Public key: age1...`. **Copy that whole line and send it
+   to Claude.** It is the padlock, and it is safe to share.
+6. The file `Documents\engage-backup-key.txt` is the **key**. Keep it very safe:
+   - Copy it to **two USB sticks**, kept in two different places (for example home and office).
+   - In Bitwarden, make a new item "Engage backup private key" and attach the file (or open it in
+     Notepad and paste its text into a secure note).
+   - Then delete the file from Documents, and empty the Recycle Bin.
+   - ⚠️ If this key is lost, **nobody can ever open the backups, not even you**.
 
-### Step 6.6 — Uptime alerts (UptimeRobot or Better Stack)
-1. Create a free account at **uptimerobot.com** (or **betterstack.com**).
-2. Add your email and phone as alert contacts.
-3. Do not add monitors yet. Claude tells you the exact addresses after deployment.
+If `winget` is not found: download age from
+**github.com/FiloSottile/age/releases**. Pick the file ending `windows-amd64.zip`, unzip it, and
+run `age-keygen.exe -o ...` from inside that folder.
 
-### Step 6.7 — Test booking accounts (Cal.com and Calendly)
-1. Create free accounts at **cal.com** and **calendly.com** with a test email address, not a
-   clinic's.
-2. In each, create one event type called "Eye test (TEST)".
-3. Claude guides the connection when staging is live.
+### Step 6.6 — Uptime alerts (UptimeRobot) ✅ done 27 Nov
 
-### Step 6.8 — Two GitHub settings (when Claude says the first release is ready)
-The app is packaged into "images" that the server downloads from GitHub. Two settings are needed
-once:
-1. **Public browser values.** In your repository on github.com, open **Settings → Secrets and
-   variables → Actions → Variables** tab → **New repository variable**, and add four variables.
-   Use the **Variables** tab, not Secrets; these values are public anyway.
-   - `STAGING_SUPABASE_URL` and `STAGING_SUPABASE_PUBLISHABLE_KEY`, from the existing Supabase
-     project: Project Settings → API. Use the **publishable** key, which starts `sb_publishable_`.
-   - `PRODUCTION_SUPABASE_URL` and `PRODUCTION_SUPABASE_PUBLISHABLE_KEY`, from the new project.
-   - **Never** put a key that starts with `sb_secret_` here. The build refuses it anyway.
-2. **Make the images downloadable.** After the first release, open your GitHub profile →
-   **Packages**. For each of the three `zuvoora-engage-...` packages, go to **Package settings →
-   Change visibility → Public**. They contain no secrets (decision D8), so the server can
-   download them without a password.
+> ✅ Account created; first monitor `zuvoora.com`. The Engage monitors are added after deployment.
+UptimeRobot checks the website every few minutes and emails you if it stops answering.
+1. Go to **uptimerobot.com** → **Register for FREE**. The sign-up page (27 Nov) asks for a
+   **"Website to monitor"** first, before the account:
+   - **Website to monitor:** type `zuvoora.com`. Nothing of Engage is online yet, and your main
+     site is real and yours, so it is a harmless first check. You can delete or keep it later.
+   - **Create your account:** the easiest way is the **Google** button with your Gmail. Your
+     Google account already has two-factor login, so there is no new password to manage. Or type
+     your Gmail, click **Register**, and follow the email link to set a password (saved in
+     Bitwarden).
+2. If you used email: open the confirmation email and click its link.
+3. If you registered by email and password, turn on two-factor login: profile → **Security**. With
+   Google sign-in, Google's two-factor login already protects it.
+4. Open **Integrations / Alert contacts**. Your email is already there. Add your phone number
+   too, if offered for free.
+5. **Do not add monitors yet.** There is nothing online to watch. Claude gives you the exact
+   addresses after deployment.
 
-> 🛑 **STOP.** Tell Claude which of 6.1–6.7 are done. Claude applies the database setup to the
-> production project and checks everything.
+### Step 6.7 — Test booking accounts (Cal.com and Calendly) ✅ done 27 Nov
+
+> ✅ Free test accounts with an "Eye test (TEST)" event type. No API keys yet: Claude asks for them
+> during staging testing (6F).
+These are **pretend clinic calendars** for testing. Never use a real clinic's account for tests.
+1. **Cal.com:** go to **cal.com** → **Sign up** (free) with your Gmail. Choose a username such as
+   `zuvoora-test`.
+   - Open **Event Types** → **New** → title `Eye test (TEST)`, 30 minutes → **Continue** → **Save**.
+   - In **Availability**, make sure some weekday hours are open, for example Mon–Fri 9:00–17:00.
+2. **Calendly:** go to **calendly.com** → **Sign up** (free) with your Gmail.
+   - Create an event type `Eye test (TEST)`, 30 minutes, with weekday hours.
+   - Note: connecting Calendly to our app may need a paid Calendly plan for webhooks. Claude
+     checks this when staging is live; do not pay for anything now.
+3. Save both logins in Bitwarden. **Do not create API keys yet.** Claude tells you when, during
+   staging testing.
+
+### Step 6.8 — Two GitHub settings
+**6.8a — Put four public values into GitHub** ✅ done 27 Nov
+These let GitHub build the app for each database. They are **public** values, not secrets.
+1. Go to **github.com** → your repository **ZUVOORA-ENGAGE** → **Settings** (top right of the
+   repository) → left menu **Secrets and variables** → **Actions**.
+2. Click the **Variables** tab. ⚠️ Not the "Secrets" tab.
+3. Click **New repository variable** and add these four, one at a time (Name, then Value, then
+   **Add variable**):
+
+   | Name | Value |
+   |---|---|
+   | `STAGING_SUPABASE_URL` | `https://fjgthmmntjqdcrkajfaf.supabase.co` |
+   | `STAGING_SUPABASE_PUBLISHABLE_KEY` | the staging project's **publishable** key (Supabase → project "ZUVOORA ENGAGE" → Project Settings → API Keys; starts `sb_publishable_`) |
+   | `PRODUCTION_SUPABASE_URL` | `https://zitwanfosyhtjmfqjlsm.supabase.co` |
+   | `PRODUCTION_SUPABASE_PUBLISHABLE_KEY` | the production **publishable** key (Step 6.1b, Job B) |
+
+4. ⚠️ **Never** put a key starting `sb_secret_` into GitHub. The build checks for this and stops.
+
+**6.8b — Make the images downloadable (after the first release; Claude will say when)**
+GitHub profile → **Packages** → for each `zuvoora-engage-...` package → **Package settings** →
+**Change visibility** → **Public**. The images contain no secrets (decision D8).
+
+> 🛑 **STOP.** Tell Claude which tasks are done (for example "tasks 1–5 done"), and send the
+> `age1...` public line from Step 6.5.
 
 ---
 

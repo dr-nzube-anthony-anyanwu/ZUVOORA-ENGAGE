@@ -64,6 +64,18 @@ Fill these by hand from Settings → API Keys and Database → Connect (Session 
 
 The only value to share with Claude is the **project URL / ref** (not secret).
 
+## Production project (Phase 6, 2026-11-26/27)
+- Project `zuvoora-engage-production`, ref `zitwanfosyhtjmfqjlsm`, region eu-west-1, Free plan.
+  The staging project is `fjgthmmntjqdcrkajfaf` ("ZUVOORA ENGAGE").
+- The CLI is linked to production **only** in `D:\technologies\engage-prod-ops` (outside the
+  repository); the repository stays linked to staging. Run production commands **from inside**
+  that folder, because the repository's gitignored `.env` holds the staging `SUPABASE_DB_PASSWORD`.
+- The 19 migrations were applied on 2026-11-26.
+- Auth: SMTP was set by the founder in the dashboard (production-only Resend key). The other
+  Auth settings were pushed on 2026-11-27 from the ops copy of `config.toml`, which uses the
+  production `site_url` and redirect and `email_sent = 30`. Steps and evidence:
+  `docs/operations/IMPLEMENTATION.md` (Phase 6, 6C).
+
 ## 8. Custom email (Resend) — done 2026-11-21 (ADR-020)
 - Resend domain `engage.zuvoora.com` (eu-west-1), DNS in Cloudflare under `zuvoora.com`:
   `resend._domainkey.engage` TXT (DKIM), `send.engage` MX + TXT (SPF), `rsend.engage` CNAME

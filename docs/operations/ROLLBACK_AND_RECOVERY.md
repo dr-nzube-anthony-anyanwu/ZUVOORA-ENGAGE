@@ -58,6 +58,9 @@ the facts-first responder.
 | Encryption keys and secrets | Password manager, plus an offline copy of the **backup private key** and `INTEGRATIONS_ENCRYPTION_KEY` | Founder | Always |
 | Server configuration | Git (`deploy/`); env files only in the password manager | — | — |
 
+Backups are encrypted to the public key(s) in `deploy/backup/age-recipients.txt` (created
+2026-11-27). The private key never touches the server or the repository.
+
 ### Rules
 
 - The server can **write** backups but cannot **read or delete** them. Only the founder's offline

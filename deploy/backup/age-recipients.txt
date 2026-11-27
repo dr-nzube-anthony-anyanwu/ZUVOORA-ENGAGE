@@ -1,0 +1,7 @@
+# ZUVOORA Engage backup encryption — PUBLIC key(s) only (Phase 6, ADR-043; created by the founder
+# on 2026-11-27 with age-keygen). Backups are encrypted to these recipients; the server can lock
+# backups but never open them. The matching PRIVATE key is held only by the founder (two USB
+# sticks + password manager). To rotate: add the new public key on its own line, re-encrypt
+# nothing (old backups still need the old private key), and keep the old private key until the
+# last backup made with it has expired.
+age1ht2klqkmyv3jfr48zfma8eq6283hnaguyc3mjrc6qnkrqlafuyrs96uklp
