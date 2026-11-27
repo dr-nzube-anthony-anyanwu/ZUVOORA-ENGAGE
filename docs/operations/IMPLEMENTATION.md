@@ -358,7 +358,28 @@ Remaining founder tasks (`PHASE6_FOUNDER_GUIDE.md`, "Where you are now"):
   - remaining differences are only the pooler sizes, which are dashboard-only and the defaults are fine.
 - **Not verifiable by tool:** Job A (the role password), Job B (the keys) and Job D (Data API schemas: the CLI does not manage `api.schemas`). These rest on the founder's confirmation; Job D will be checked from outside in 6E.
 
-**Next step:** 6D (DNS, proxy and TLS).
+**6D progress (2026-11-28; founder at the console, guided step by step):**
+- **8.1 Origin certificate:** a Cloudflare Origin CA certificate (ECC, 15 years, until 2041-11-23) for exactly the four Engage host names, no wildcard. The certificate and key are stored in the founder's Bitwarden.
+- **8.2 Certificate files** on the server in `/opt/zuvoora-engage/proxy/certs` (folder 700, files 600, root):
+  - `origin.pem`: subject "CloudFlare Origin Certificate";
+  - `origin-key.pem`: `openssl pkey` OK;
+  - `cloudflare-origin-pull-ca.pem`: downloaded from developers.cloudflare.com; Claude verified it independently (CN origin-pull.cloudflare.net, CA, valid until 2029-11-01).
+- **8.3 Repository** cloned to `/opt/zuvoora-engage/app` at `e928de1`.
+- **8.4 Edge networks and proxy:**
+  - edge networks `engage-edge-prod` (10.73.0.0/24) and `engage-edge-staging` (10.73.10.0/24) created;
+  - Caddy (`engage-proxy`, pinned digest) is **healthy**;
+  - its log shows the origin certificate loaded for all four hosts, no ACME, strict SNI-Host enforcement with TLS client authentication, and HTTP→HTTPS redirects.
+- **External checks from the founder's network:**
+  - HTTPS to the server IP with SNI `engage.zuvoora.com` and no client certificate: handshake refused (fatal TLS alert);
+  - HTTPS and HTTP to the bare IP: refused or closed;
+  - ports 3073, 8073, 2019 and 3310: closed.
+- **Found and fixed:** `/opt/zuvoora-engage` (750 root) cannot be entered by `engageadmin`, so the guide now uses full paths. A `chmod` with `*.pem` must run inside `sudo sh -c`.
+
+- **8.5 DNS:** four proxied A records (engage, api-engage, staging-engage, staging-api-engage) point to the VPS; the Resend records are untouched. All four resolve to Cloudflare. Before 8.7 they return Cloudflare 520, as expected: the origin requires the AOP client certificate.
+- **8.6 Configuration Rule** "Engage strict TLS" (hostname in the four names → SSL Strict) is active. The zone-wide mode is unchanged (Full).
+- **Finding (D13):** `zuvoora.com`, `www` and `api.zuvoora.com` also point at this VPS but nothing serves them. They were already failing before 6D. The founder decided the main ZUVOORA application will be deployed here later, after the Engage launch.
+
+**Next step:** 8.7 Authenticated Origin Pulls, 8.8 Bot Fight Mode check, 8.9 padlock test, 8.10 Cloudflare Access for the staging dashboard.
 
 Environments and deployment
 - [ ] Separate staging and production (the existing cloud Supabase project becomes staging; a new production project).

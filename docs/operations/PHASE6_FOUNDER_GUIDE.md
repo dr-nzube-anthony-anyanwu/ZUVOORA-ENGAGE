@@ -43,7 +43,7 @@ accounts, your money or your secrets.
 
 | # | Task | Time | Where in this guide |
 |---|---|---|---|
-| — | **Stage 6C is complete.** Next: Part 8 (web addresses and the padlock), together with Claude. | | |
+| 1 | **Stage 6D: web addresses and the padlock.** Do steps 8.1–8.10 in order and tell Claude after each. | about 1 hour | [Part 8](#part-8--web-addresses-and-the-padlock-stage-6d) |
 
 **Later (Claude will tell you when):** official email addresses (6.2b, optional), making the
 GitHub images public (6.8b), putting secrets on the server (Part 7), web addresses and the
@@ -740,20 +740,211 @@ never share a secret.**
 
 ---
 
-## Part 8 — Web addresses and the padlock (stage 6D) — after approval
+## Part 8 — Web addresses and the padlock (stage 6D)
 
-Claude gives you the exact Cloudflare clicks. In short, you will:
-1. Add the four web addresses (DNS records) pointing to your server, with the **orange cloud**
-   (proxied) on.
-2. Create a **Cloudflare Origin Certificate** (SSL/TLS → Origin Server). Its private key goes onto
-   the server with the Part 7 method, never into the chat.
-3. Set **SSL/TLS mode to Full (strict)** **only after** Claude confirms that the main ZUVOORA site
-   works with it. This setting affects the whole domain.
-4. Turn on **Authenticated Origin Pulls**.
-5. Put the staging dashboard behind **Cloudflare Zero Trust → Access**, so only your email can open
-   it.
+**What we are building, in plain words.** When someone types `engage.zuvoora.com`:
+1. **Cloudflare** answers first. It shows the visitor the padlock 🔒 and blocks attacks.
+2. Cloudflare passes the visit on to **your server**, over a second locked connection.
+3. On your server, **Caddy** (the "doorman" program) receives it and hands it to the right part of
+   the app.
 
-✅ **Done when:** all four addresses show a padlock 🔒 in the browser.
+Three extra locks make sure **only Cloudflare** can talk to your server:
+- the **Origin Certificate**, the server's own ID card, which Cloudflare trusts;
+- **Authenticated Origin Pulls**, where Cloudflare shows *its* ID card, and Caddy refuses anyone
+  without it;
+- **Full (strict)**, where Cloudflare refuses to talk to a server whose ID card is wrong.
+
+**Golden rules for this part**
+- Do the steps **in order**, and tell Claude after each group (8.1, 8.2, …).
+- In Cloudflare, **never touch** the existing records `send.engage`, `resend._domainkey.engage`,
+  `rsend.engage` or `_dmarc.engage` (email), nor anything else already there.
+- Server commands: **one line at a time**, and run `sudo -v` first (Part 2b).
+- The certificate's **private key** goes from Cloudflare → Bitwarden → the server. **Never into the
+  chat.**
+
+When this part is finished, the four addresses show a padlock but still say **"502 Bad Gateway"**.
+That is correct: the app itself is installed in Part 9 (stage 6E).
+
+---
+
+### Step 8.1 — Make the server's ID card (Cloudflare Origin Certificate) · 5 min
+1. Log in at **dash.cloudflare.com** → click **zuvoora.com**.
+2. Left menu: **SSL/TLS** → **Origin Server**.
+3. Click **Create Certificate**.
+4. Choose **"Generate private key and CSR with Cloudflare"**. Private key type: **ECC**.
+5. **Hostnames:** Cloudflare pre-fills `*.zuvoora.com` and `zuvoora.com`. **Remove both**: click
+   the little x on each. Then type these four, pressing Enter after each:
+   ```text
+   engage.zuvoora.com
+   api-engage.zuvoora.com
+   staging-engage.zuvoora.com
+   staging-api-engage.zuvoora.com
+   ```
+   This way the card only works for Engage and nothing else on your domain.
+6. **Certificate validity:** 15 years (the default). Click **Create**.
+7. You now see two boxes, with **Key format: PEM**:
+   - **Origin Certificate** (starts `-----BEGIN CERTIFICATE-----`)
+   - **Private Key** (starts `-----BEGIN PRIVATE KEY-----`). ⚠️ **Shown only once.**
+8. In **Bitwarden**, create a **Secure note** named **"Engage Cloudflare origin certificate"**.
+   Paste the **Origin Certificate** text into it, then add a line `----- KEY -----`, then paste the
+   **Private Key** text below it. **Save.** Copy each box with its copy button, so you get every
+   line.
+9. Only after it is saved in Bitwarden, click **OK** in Cloudflare.
+
+✅ Tell Claude: **"8.1 done"**.
+
+### Step 8.2 — Put the ID card on the server · 10 min
+1. In PowerShell: `ssh engage-vps`, then type your key passphrase.
+2. Unlock admin commands: `sudo -v`, then the engageadmin password.
+3. Make the safe folder (one line):
+   ```bash
+   sudo install -d -m 700 -o root -g root /opt/zuvoora-engage/proxy /opt/zuvoora-engage/proxy/certs
+   ```
+4. Open an empty file for the certificate:
+   ```bash
+   sudo nano /opt/zuvoora-engage/proxy/certs/origin.pem
+   ```
+   - In Bitwarden, copy **only the certificate part**, from `-----BEGIN CERTIFICATE-----` to
+     `-----END CERTIFICATE-----`, including those two lines.
+   - **Right-click once** in the PowerShell window to paste.
+   - Save: **Ctrl+O**, then **Enter**. Exit: **Ctrl+X**.
+5. Same for the private key:
+   ```bash
+   sudo nano /opt/zuvoora-engage/proxy/certs/origin-key.pem
+   ```
+   Paste **only** the key part, from `-----BEGIN PRIVATE KEY-----` to
+   `-----END PRIVATE KEY-----`. Save (Ctrl+O, Enter) and exit (Ctrl+X).
+6. Download Cloudflare's public ID card. It's public, and Claude checked it is genuine: valid
+   until 2029.
+   ```bash
+   sudo curl -fsSL https://developers.cloudflare.com/ssl/static/authenticated_origin_pull_ca.pem -o /opt/zuvoora-engage/proxy/certs/cloudflare-origin-pull-ca.pem
+   ```
+7. Lock the files so only the administrator can read them:
+   ```bash
+   sudo sh -c 'chmod 600 /opt/zuvoora-engage/proxy/certs/*.pem'
+   (Run it inside `sudo sh -c`, because your normal user cannot see into the locked folder to
+   expand `*.pem`.)
+   ```
+8. Check everything. This prints **no secrets**, only names and dates:
+   ```bash
+   sudo ls -l /opt/zuvoora-engage/proxy/certs && sudo openssl x509 -in /opt/zuvoora-engage/proxy/certs/origin.pem -noout -subject -enddate && sudo openssl pkey -in /opt/zuvoora-engage/proxy/certs/origin-key.pem -noout && echo "KEY OK"
+   ```
+   Expected:
+   - three files, each starting `-rw-------  1 root root`;
+   - a line `subject=... CloudFlare Origin Certificate`;
+   - a line `notAfter=` about 15 years ahead;
+   - **`KEY OK`**.
+
+✅ Send Claude the output of step 8. It contains no secrets.
+
+### Step 8.3 — Download the app's deployment files to the server · 5 min
+The project is public on GitHub, so no password is needed.
+1. One line:
+   ```bash
+   sudo git clone https://github.com/dr-nzube-anthony-anyanwu/ZUVOORA-ENGAGE.git /opt/zuvoora-engage/app
+   ```
+2. Check:
+   ```bash
+   sudo git -C /opt/zuvoora-engage/app log --oneline -1
+   ```
+   It prints one line with a short code and a message. Send it to Claude.
+
+### Step 8.4 — Create the two private networks and start the doorman (Caddy) · 5 min
+1. The networks: one line each. These are the fixed "private roads" between the doorman and the
+   app.
+   ```bash
+   sudo docker network create --driver bridge --subnet 10.73.0.0/24 engage-edge-prod
+   ```
+   ```bash
+   sudo docker network create --driver bridge --subnet 10.73.10.0/24 engage-edge-staging
+   ```
+2. Start Caddy. Use the full path: `/opt/zuvoora-engage` is locked to the administrator, so a
+   plain `cd` into it is refused, and that is on purpose.
+   ```bash
+   sudo docker compose -p engage-proxy -f /opt/zuvoora-engage/app/deploy/proxy/compose.yml up -d --wait
+   ```
+   It downloads Caddy (about 20 seconds) and should end with `Container engage-proxy Healthy`.
+3. Check:
+   ```bash
+   sudo docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+   ```
+   Expected: `engage-proxy`, `Up ... (healthy)`, with ports `80` and `443`.
+
+✅ Send Claude the outputs of steps 2 and 3.
+
+### Step 8.5 — Add the four web addresses (Cloudflare DNS) · 5 min
+1. Cloudflare → **zuvoora.com** → **DNS** → **Records** → **Add record**.
+2. Fill in, then click **Save**:
+   - Type: **A**
+   - Name: `engage`
+   - IPv4 address: your server's IP, from Bitwarden (it starts with `84.`)
+   - Proxy status: **Proxied** (the cloud must be **orange**)
+   - TTL: Auto
+3. Repeat for `api-engage`, `staging-engage` and `staging-api-engage`: the same IP, **Proxied**.
+4. Check the list: four new **A** records with **orange clouds**. The email records are untouched.
+
+### Step 8.6 — Make Cloudflare strict for these four addresses only · 5 min
+This sets **Full (strict)** for Engage without changing anything else on `zuvoora.com`.
+1. Cloudflare → **zuvoora.com** → left menu **Rules** → **Overview** → **Create rule** →
+   **Configuration Rule**. (Or Rules → **Configuration Rules** → **Create rule**.)
+2. Rule name: `Engage strict TLS`
+3. **If incoming requests match…** choose **Custom filter expression**, then click **Edit
+   expression** and paste:
+   ```text
+   (http.host in {"engage.zuvoora.com" "api-engage.zuvoora.com" "staging-engage.zuvoora.com" "staging-api-engage.zuvoora.com"})
+   ```
+4. **Then the settings are…**: find **SSL** → click **+ Add** → choose **Strict**.
+5. Click **Deploy**.
+
+### Step 8.7 — Make Cloudflare show its ID card (Authenticated Origin Pulls) · 1 min
+1. Cloudflare → **SSL/TLS** → **Origin Server**.
+2. Find **Authenticated Origin Pulls** and switch it **On**.
+
+This is safe for the rest of your domain: other servers simply ignore Cloudflare's ID card.
+
+### Step 8.8 — Do not let the "bot fighter" block calendars · 1 min
+1. Cloudflare → **Security** → **Bots** (sometimes under **Security → Settings**).
+2. If **Bot Fight Mode** is **On**, switch it **Off**. It blocks automatic visitors, and that would
+   include Cal.com and Calendly sending booking updates to the API. Our app has its own limits.
+3. Tell Claude whether it was on or off.
+
+### Step 8.9 — Test the padlocks · 2 min
+Open each address in your browser:
+- `https://engage.zuvoora.com`
+- `https://api-engage.zuvoora.com`
+- `https://staging-engage.zuvoora.com`
+- `https://staging-api-engage.zuvoora.com`
+
+✅ **Expected:** a padlock 🔒 in the address bar, and a page saying **"Bad gateway"** (error 502).
+**That is correct for now:** the doorman works, and the app itself is installed in Part 9.
+
+❌ If you see **"Error 526: Invalid SSL certificate"** or **"525: SSL handshake failed"**, the ID
+card is wrong. Redo 8.1–8.2, or ask Claude. If you see **"521"**, Caddy is not running; redo 8.4.
+
+Tell Claude what each of the four showed. Claude also checks from outside that nobody can reach
+your server **directly** without Cloudflare.
+
+### Step 8.10 — A login gate in front of the staging dashboard (Cloudflare Access) · 10 min
+This makes `staging-engage.zuvoora.com` ask for a code sent to **your** email before anything
+shows. It stops strangers from seeing the practice copy.
+1. Cloudflare dashboard → left menu **Zero Trust**. The first time, it asks you to:
+   - choose a **team name**, for example `zuvoora`;
+   - choose the **Free** plan.
+   ⚠️ If it insists on a payment card for the Free plan, **stop and tell Claude**. Do not pay for
+   anything.
+2. In Zero Trust: **Access** → **Applications** → **Add an application** → **Self-hosted**.
+3. Application name: `Engage staging dashboard`. Session duration: **24 hours**.
+4. **Public hostname / Application domain:** subdomain `staging-engage`, domain `zuvoora.com`.
+5. **Policy:** name `Founder only`, Action **Allow**, rule **Include → Emails →** your Gmail address.
+6. **Login methods:** **One-time PIN** (a code sent to your email).
+7. Save. Then open `https://staging-engage.zuvoora.com` in a private browser window. It should ask
+   for your email, send you a code, and after the code show the "Bad gateway" page. That is
+   correct for now.
+
+Only the staging **dashboard** gets this gate. The staging **API** must stay open, because the
+chat widget and the calendars need to reach it.
+
+✅ **Part 8 is done when** 8.1–8.10 are finished and Claude has confirmed the outside checks.
 
 ---
 

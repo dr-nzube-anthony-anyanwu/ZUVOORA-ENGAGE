@@ -12,7 +12,6 @@
 #   /etc/caddy/certs/origin.pem, origin-key.pem          Cloudflare Origin CA certificate + key
 #   /etc/caddy/certs/cloudflare-origin-pull-ca.pem         Cloudflare's Authenticated Origin Pulls CA
 # Validate before every reload:  docker exec engage-proxy caddy validate --config /etc/caddy/Caddyfile
-
 {
 	admin off
 	servers {
@@ -107,7 +106,13 @@ staging-api-engage.zuvoora.com {
 	import to_api staging-api
 }
 
-# Anything else that reaches port 80 or 443 (scanners, the bare IP): no response.
+# Plain-HTTP visits to the Engage names (Cloudflare forwards http:// requests over port 80):
+# send them to the HTTPS address. Without this block the catch-all below would drop them.
+http://engage.zuvoora.com, http://api-engage.zuvoora.com, http://staging-engage.zuvoora.com, http://staging-api-engage.zuvoora.com {
+	redir https://{host}{uri} permanent
+}
+
+# Anything else that reaches port 80 (scanners, the bare IP, other names): no response.
 http:// {
 	abort
 }
