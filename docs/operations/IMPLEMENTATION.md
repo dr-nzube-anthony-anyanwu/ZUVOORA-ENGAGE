@@ -379,7 +379,29 @@ Remaining founder tasks (`PHASE6_FOUNDER_GUIDE.md`, "Where you are now"):
 - **8.6 Configuration Rule** "Engage strict TLS" (hostname in the four names → SSL Strict) is active. The zone-wide mode is unchanged (Full).
 - **Finding (D13):** `zuvoora.com`, `www` and `api.zuvoora.com` also point at this VPS but nothing serves them. They were already failing before 6D. The founder decided the main ZUVOORA application will be deployed here later, after the Engage launch.
 
-**Next step:** 8.7 Authenticated Origin Pulls, 8.8 Bot Fight Mode check, 8.9 padlock test, 8.10 Cloudflare Access for the staging dashboard.
+- **8.7 Authenticated Origin Pulls:** Global, using Cloudflare's shared certificate, which matches the installed CA. Afterwards the four hosts return 502 instead of 520.
+- **Verified in the Caddy log** (founder's browser visit):
+  - the TLS client certificate is `origin-pull.cloudflare.net`, with TLS 1.3 and h2;
+  - `X-Forwarded-For` equals `CF-Connecting-IP`;
+  - status 502 only because `prod-web` does not exist yet;
+  - the browser page shows Browser Working → Cloudflare Working → Host Error, as expected before 6E.
+- **Found and fixed:** plain `http://` to the Engage hosts returned 520, because the catch-all `http:// { abort }` also caught them. Commit `67353e5` adds a permanent redirect for the four hosts (path and query kept) and formats the Caddyfile. The server pulled it and Caddy was restarted. Verified from outside: 301 to `https://` for all four.
+- **Note (privacy review, R17/R5):** Caddy's *error* log (not the filtered access log) records the client IP, URI and request headers when an upstream fails. Authorization and Cookie are redacted by Caddy by default. Logs are capped (json-file, 3 × 10 MB). To revisit before the pilot: decide whether to exclude `http.log.error` or keep it for troubleshooting.
+- **Note (future hardening):** Global AOP uses a client certificate shared by all Cloudflare customers. A zone-level custom AOP certificate is stronger and is optional later.
+
+- **8.8 Bot Fight Mode** was **on** for the zone. The founder switched it **off** (2026-11-28), because it would challenge Cal.com and Calendly webhooks and widget API calls (R19). Zone-wide effect: the main `zuvoora.com` site is not served yet. Revisit with WAF rules when it is.
+
+- **8.9 Padlock:** confirmed by the founder in the browser.
+- **8.10 Cloudflare Access:** Zero Trust Free plan (Cloudflare required a payment method on file; $0, founder's decision). Self-hosted application "Engage staging dashboard" for `staging-engage.zuvoora.com` only, session 24 hours, policy "Founder only" (Allow, Include the founder's email), One-time PIN login.
+  - The first save failed: an empty "Private IPs" destination row triggered `use_clientless_isolation_app_launcher_url can only be enabled for apps with private destinations`. Removing that row fixed it.
+  - Verified from outside: `staging-engage` → 302 to the team's `cloudflareaccess.com` login; `staging-api-engage`, `engage` and `api-engage` → 502 (not gated). The founder confirmed the email code and the direct API access in a private window.
+
+**6D complete (2026-11-28).** Edge chain: Cloudflare (proxied, strict per-host TLS, Global AOP, Bot Fight Mode off, Access on the staging dashboard) → Caddy (Origin CA certificate, client-certificate enforcement, HTTP→HTTPS redirect) → edge networks, awaiting the application containers.
+
+**Next step: 6E (staging deployment).**
+- **Claude:** prepare release `v0.6.0`: push the tag, check the `images` run (which also verifies the GitHub variables) and its scans and digests.
+- **Founder:** make the 3 GHCR packages public (6.8b); fill `/opt/zuvoora-engage/staging/.env` from the template with Bitwarden values (Part 7); generate the app secrets on the server.
+- **Then:** `preflight.sh staging` → `deploy.sh staging <digests>`, then smoke tests and the walkthrough.
 
 Environments and deployment
 - [ ] Separate staging and production (the existing cloud Supabase project becomes staging; a new production project).

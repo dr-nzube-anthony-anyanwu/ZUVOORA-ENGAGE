@@ -30,6 +30,7 @@ accounts, your money or your secrets.
 | SSH shortcut `ssh engage-vps` | 27 Nov |
 | **6.2** Resend keys: `engage-staging-app`, `engage-production-app`, `engage-production-supabase-smtp` | 27 Nov |
 | OpenRouter credit limits confirmed | 27 Nov |
+| **Part 8 (stage 6D)** Web addresses and the padlock: origin certificate, Caddy running, 4 DNS records, "Engage strict TLS" rule, Authenticated Origin Pulls, Bot Fight Mode off, Cloudflare Access gate on the staging dashboard. Checked from outside. | 28 Nov |
 | **6.8a** GitHub repository variables (4 public values) | 27 Nov |
 | **6.7** Cal.com and Calendly test accounts | 27 Nov |
 | **6.6** UptimeRobot account (monitoring `zuvoora.com` for now) | 27 Nov |
@@ -43,7 +44,7 @@ accounts, your money or your secrets.
 
 | # | Task | Time | Where in this guide |
 |---|---|---|---|
-| 1 | **Stage 6D: web addresses and the padlock.** Do steps 8.1–8.10 in order and tell Claude after each. | about 1 hour | [Part 8](#part-8--web-addresses-and-the-padlock-stage-6d) |
+| — | **Stage 6D is complete.** Next: stage 6E, the practice copy (staging) goes online. Claude prepares the first release, then guides you. | | |
 
 **Later (Claude will tell you when):** official email addresses (6.2b, optional), making the
 GitHub images public (6.8b), putting secrets on the server (Part 7), web addresses and the
@@ -740,7 +741,11 @@ never share a secret.**
 
 ---
 
-## Part 8 — Web addresses and the padlock (stage 6D)
+## Part 8 — Web addresses and the padlock (stage 6D) ✅ DONE
+
+> ✅ **Done (28 Nov).** All of 8.1–8.10, verified from outside by Claude. Kept below as reference.
+> Extra on 28 Nov: Claude fixed plain-`http://` visits so they jump to `https://` (8.7b), and
+> Cloudflare Zero Trust needed a payment card on file for its **Free** plan ($0).
 
 **What we are building, in plain words.** When someone types `engage.zuvoora.com`:
 1. **Cloudflare** answers first. It shows the visitor the padlock 🔒 and blocks attacks.
