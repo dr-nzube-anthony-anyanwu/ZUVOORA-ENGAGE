@@ -400,7 +400,7 @@ Remaining founder tasks (`PHASE6_FOUNDER_GUIDE.md`, "Where you are now"):
 
 **6E progress (2026-11-28):**
 - **CI** green on `2cddf55` (both workflows). Release tag **`v0.6.0`** (annotated) pushed on that commit, which started the `images` workflow.
-- **Staging Supabase Auth URLs** set through a separate `D:	echnologies\engage-staging-ops` work directory (linked to staging; same method as production): `site_url` and the redirect are now `https://staging-engage.zuvoora.com`, and the storage file limit is 10 MiB. The diff was reviewed first; sign-ups, MFA and the password rules were already correct; SMTP was not touched.
+- **Staging Supabase Auth URLs** set through a separate `D:\technologies\engage-staging-ops` work directory (linked to staging; same method as production): `site_url` and the redirect are now `https://staging-engage.zuvoora.com`, and the storage file limit is 10 MiB. The diff was reviewed first; sign-ups, MFA and the password rules were already correct; SMTP was not touched.
 - **Env templates:** the non-secret values (project URL, `engage_api.<ref>` user and the eu-west-1 pooler host) are filled in, so only real secrets remain as `REPLACE…`.
 
 **Next step: 6E (staging deployment).**
