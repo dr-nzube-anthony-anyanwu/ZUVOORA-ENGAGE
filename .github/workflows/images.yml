@@ -44,12 +44,15 @@ jobs:
         run: |
           owner="$(echo "$REGISTRY" | tr '[:upper:]' '[:lower:]')"
           echo "OWNER=$owner" >> "$GITHUB_ENV"
-          docker build -f apps/api/Dockerfile -t "$owner/zuvoora-engage-api:$TAG" .
-          docker build -t "$owner/zuvoora-engage-web-staging:$TAG" \
+          # The source label connects each GHCR package to this repository, so the workflow token
+          # may write to it (v0.6.0 was refused: "denied").
+          src="org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY"
+          docker build -f apps/api/Dockerfile --label "$src" -t "$owner/zuvoora-engage-api:$TAG" .
+          docker build --label "$src" -t "$owner/zuvoora-engage-web-staging:$TAG" \
             --build-arg NEXT_PUBLIC_SUPABASE_URL="$S_URL" \
             --build-arg NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$S_KEY" \
             apps/web
-          docker build -t "$owner/zuvoora-engage-web-production:$TAG" \
+          docker build --label "$src" -t "$owner/zuvoora-engage-web-production:$TAG" \
             --build-arg NEXT_PUBLIC_SUPABASE_URL="$P_URL" \
             --build-arg NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$P_KEY" \
             apps/web
@@ -82,14 +85,23 @@ jobs:
             echo "Deploy with (on the server):"
             echo
           } >> "$GITHUB_STEP_SUMMARY"
+          # The digest is read back from the REGISTRY: with Docker's containerd image store (default
+          # on current runners) `docker image inspect` has no RepoDigests after a push (v0.6.0 failed
+          # here after pushing the API image).
+          ref() {
+            local d
+            d="$(docker buildx imagetools inspect "$OWNER/$1:$TAG" --format '{{.Manifest.Digest}}')"
+            [[ "$d" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "no digest for $1" >&2; return 1; }
+            echo "$OWNER/$1@$d"
+          }
           for name in zuvoora-engage-api zuvoora-engage-web-staging zuvoora-engage-web-production; do
+            echo "pushing $name:$TAG"
             docker push --quiet "$OWNER/$name:$TAG"
-            digest="$(docker image inspect --format '{{index .RepoDigests 0}}' "$OWNER/$name:$TAG")"
-            echo "- \`$digest\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "- \`$(ref "$name")\`" >> "$GITHUB_STEP_SUMMARY"
           done
-          api="$(docker image inspect --format '{{index .RepoDigests 0}}' "$OWNER/zuvoora-engage-api:$TAG")"
-          ws="$(docker image inspect --format '{{index .RepoDigests 0}}' "$OWNER/zuvoora-engage-web-staging:$TAG")"
-          wp="$(docker image inspect --format '{{index .RepoDigests 0}}' "$OWNER/zuvoora-engage-web-production:$TAG")"
+          api="$(ref zuvoora-engage-api)"
+          ws="$(ref zuvoora-engage-web-staging)"
+          wp="$(ref zuvoora-engage-web-production)"
           {
             echo
             echo '```'
