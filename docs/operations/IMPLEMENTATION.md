@@ -403,6 +403,15 @@ Remaining founder tasks (`PHASE6_FOUNDER_GUIDE.md`, "Where you are now"):
 - **Staging Supabase Auth URLs** set through a separate `D:\technologies\engage-staging-ops` work directory (linked to staging; same method as production): `site_url` and the redirect are now `https://staging-engage.zuvoora.com`, and the storage file limit is 10 MiB. The diff was reviewed first; sign-ups, MFA and the password rules were already correct; SMTP was not touched.
 - **Env templates:** the non-secret values (project URL, `engage_api.<ref>` user and the eu-west-1 pooler host) are filled in, so only real secrets remain as `REPLACE…`.
 
+- **`v0.6.0` did not publish.** The build and both Trivy scans passed, then `error from registry: denied` on the first push. The workflow had created `zuvoora-engage-api` (repository role Admin) but the push was refused.
+  - Fix in `56ef7e3`: an OCI source label on all images, and digests read back from the registry (`buildx imagetools`), failing loudly. CI green.
+  - The founder set the package's repository role to Write and made the packages public (D8).
+- **Release `v0.6.1`** (tag on `56ef7e3`): build, scans and publish succeeded. Checked directly in GHCR with an anonymous pull token: all three images are public.
+  - `ghcr.io/dr-nzube-anthony-anyanwu/zuvoora-engage-api@sha256:07987ec2b5cefc4012519e40aed3e43e21848adbc470aa1ff9611f258020af9a`
+  - `ghcr.io/dr-nzube-anthony-anyanwu/zuvoora-engage-web-staging@sha256:04e4c30aebd5423109706959903635c9cbc84bcf09a79c3564b7f38f60c4e855`
+  - `ghcr.io/dr-nzube-anthony-anyanwu/zuvoora-engage-web-production@sha256:6db99ae7751a610177b5cf0f23809a6fa2621ad9da47340188ee0cdd6dbc01c8`
+- **Note:** status polling hit the anonymous GitHub API limit (60 per hour). The GHCR registry check is the reliable alternative.
+
 **Next step: 6E (staging deployment).**
 - **Claude:** prepare release `v0.6.0`: push the tag, check the `images` run (which also verifies the GitHub variables) and its scans and digests.
 - **Founder:** make the 3 GHCR packages public (6.8b); fill `/opt/zuvoora-engage/staging/.env` from the template with Bitwarden values (Part 7); generate the app secrets on the server.

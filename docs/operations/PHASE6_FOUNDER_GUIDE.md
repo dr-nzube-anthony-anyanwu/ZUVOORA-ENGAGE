@@ -957,6 +957,110 @@ chat widget and the calendars need to reach it.
 
 ## Part 9 — Practice copy, testing, then the real thing (6E–6I)
 
+### Stage 6E: open the practice shop (staging), step by step
+
+**The idea:** GitHub has packed the app into three sealed boxes ("images"). The server downloads
+the boxes, reads its **settings file** (addresses plus secret keys) and starts four small
+programs:
+- **api**: the brain;
+- **web**: the dashboard;
+- **worker**: sends emails and does background jobs;
+- **clamav**: the virus scanner.
+
+Afterwards, `https://staging-engage.zuvoora.com` shows the real dashboard instead of "Bad gateway".
+
+Rules, as always: secrets go **Bitwarden → server**, never into the chat. On the server, run
+`sudo -v` first and paste **one line at a time**.
+
+#### 9.1 — Make the two dashboard packages public (2 min, after Claude says the build worked)
+1. Open **https://github.com/dr-nzube-anthony-anyanwu?tab=packages**.
+2. For **`zuvoora-engage-web-staging`** and **`zuvoora-engage-web-production`**:
+   **Package settings** → **Danger Zone** → **Change package visibility** → **Public** → type the
+   name to confirm. (`zuvoora-engage-api` is already public.)
+
+#### 9.2 — Two values from the staging database (5 min)
+Supabase → project **"ZUVOORA ENGAGE"**. That is **staging**: check the name at the top.
+1. **Secret key for the staging server:** **Project Settings → API Keys → Secret keys → Create new
+   secret key**, name it `engage-staging-server`. Copy it (it starts `sb_secret_`) into Bitwarden as
+   "Supabase staging secret key". **Never share it.**
+2. **Publishable key:** on the same page, copy the **publishable** key (starts `sb_publishable_`)
+   into Bitwarden as "Supabase staging publishable key". It is public.
+3. **The app's database password (engage_api):**
+   - If Bitwarden already has a "Supabase staging engage_api password" (set on 21 Nov), use it.
+   - Otherwise make a new one: Bitwarden → generate **letters and numbers only**, 32 characters →
+     save it as "Supabase staging engage_api password". Then in Supabase: **SQL Editor → New
+     query**, type `alter role engage_api with password 'PASTE_HERE';`, click **Run**, and delete the
+     query afterwards.
+
+#### 9.3 — Create the staging settings file on the server (15 min)
+1. `ssh engage-vps`, then `sudo -v`.
+2. Bring the deployment files up to date:
+   ```bash
+   sudo git -C /opt/zuvoora-engage/app pull --ff-only
+   ```
+3. Copy the template into place, locked (mode 600):
+   ```bash
+   sudo install -m 600 -o root -g root /opt/zuvoora-engage/app/deploy/env/staging.env.example /opt/zuvoora-engage/staging/.env
+   ```
+4. Let the server create the two app secrets **inside the file**:
+   ```bash
+   sudo sed -i "s|^WIDGET_TOKEN_SECRET=.*|WIDGET_TOKEN_SECRET=$(python3 -c 'import secrets;print(secrets.token_urlsafe(48))')|" /opt/zuvoora-engage/staging/.env
+   ```
+   ```bash
+   sudo sed -i "s|^INTEGRATIONS_ENCRYPTION_KEY=.*|INTEGRATIONS_ENCRYPTION_KEY=$(python3 -c 'import base64,os;print(base64.urlsafe_b64encode(os.urandom(32)).decode().rstrip(chr(61)))')|" /opt/zuvoora-engage/staging/.env
+   ```
+5. Show those two lines **on your own screen only** and copy each value into Bitwarden ("Staging
+   WIDGET_TOKEN_SECRET" and "Staging INTEGRATIONS_ENCRYPTION_KEY"). **Do not paste them here.**
+   ```bash
+   sudo grep -E '^(WIDGET_TOKEN_SECRET|INTEGRATIONS_ENCRYPTION_KEY)=' /opt/zuvoora-engage/staging/.env
+   ```
+6. Open the file to fill in the rest:
+   ```bash
+   sudo nano /opt/zuvoora-engage/staging/.env
+   ```
+   Move with the **arrow keys**. To jump to the next blank, press **Ctrl+W**, type `REPLACE`,
+   press **Enter**. Delete a placeholder with **Backspace/Delete**, then paste the real value
+   (right-click). Fill in:
+
+   | Line | Value |
+   |---|---|
+   | `SUPABASE_PUBLISHABLE_KEY=` | the staging **publishable** key (9.2) |
+   | `SUPABASE_SECRET_KEY=` | the staging **secret** key (9.2) |
+   | `DATABASE_URL=` | replace only `REPLACE_ENGAGE_API_PASSWORD` with the engage_api password (9.2); keep everything else in that line |
+   | `RESEND_API_KEY=` | Resend key **engage-staging-app** |
+   | `EMAIL_ALLOWED_RECIPIENTS=` | your Gmail address: staging may email **only you** |
+   | `DEMO_REQUEST_NOTIFY_EMAIL=` | your Gmail address (optional) |
+   | `OPENROUTER_API_KEY=` | OpenRouter key **engage-staging** |
+
+   When no `REPLACE` is left (Ctrl+W finds nothing), save with **Ctrl+O, Enter**, and exit with
+   **Ctrl+X**.
+
+#### 9.4 — Safety check (1 min)
+```bash
+sudo /opt/zuvoora-engage/app/deploy/scripts/preflight.sh staging
+```
+It lists **names only**, never values. You want **`Preflight OK`**. If it lists problems, open
+the file again (step 6) and fix them. Send Claude the output.
+
+#### 9.5 — Deploy (5 min)
+Claude gives you **one exact line** with the three image fingerprints from the build. It looks
+like:
+```text
+sudo /opt/zuvoora-engage/app/deploy/scripts/deploy.sh staging ghcr.io/...-api@sha256:... ghcr.io/...-web-staging@sha256:...
+```
+It downloads the images, starts everything, waits until all four parts are healthy (the virus
+scanner needs about 2–3 minutes the first time) and runs its own checks. If anything fails it
+puts things back by itself. Send Claude the whole output.
+
+#### 9.6 — Look at it 🎉
+Private window → `https://staging-engage.zuvoora.com` → Cloudflare asks for your email code → now
+you see the **real ZUVOORA Engage** page.
+
+---
+
+### After 6E
+
+
 Claude does most of this. Your jobs:
 - [ ] Approve each step when Claude asks.
 - [ ] Walk through the [Demo guide](DEMO_GUIDE.md) on the **staging** web address (Acts 1–6),
