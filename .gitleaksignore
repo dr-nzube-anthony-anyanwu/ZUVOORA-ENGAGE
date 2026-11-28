@@ -1,3 +1,6 @@
 # Reviewed false positives only. Each entry must name the reviewer reason.
 # 2026-11-20: generic-api-key matched prose in a docs table row ("bounce/complaint handling"); no secret.
 89725b15d235c1f77532d2393d376dbd01aca941:docs/architecture/DEVELOPMENT_BLUEPRINT_FULL.md:generic-api-key:130
+# 2026-11-28: private-key matched the PEM header *labels* quoted in founder-guide instructions
+# ("starts with BEGIN PRIVATE KEY"); no key material. The text was reworded in the next commit.
+67353e5a3ef82f170240e286b15e24db638e03d6:docs/operations/PHASE6_FOUNDER_GUIDE.md:private-key:787

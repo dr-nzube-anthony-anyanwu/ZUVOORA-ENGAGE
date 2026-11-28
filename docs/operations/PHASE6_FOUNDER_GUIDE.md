@@ -789,7 +789,8 @@ That is correct: the app itself is installed in Part 9 (stage 6E).
 6. **Certificate validity:** 15 years (the default). Click **Create**.
 7. You now see two boxes, with **Key format: PEM**:
    - **Origin Certificate** (starts `-----BEGIN CERTIFICATE-----`)
-   - **Private Key** (starts `-----BEGIN PRIVATE KEY-----`). ⚠️ **Shown only once.**
+   - **Private Key** (its first line says **BEGIN PRIVATE KEY**, with five dashes on each side).
+     ⚠️ **Shown only once.**
 8. In **Bitwarden**, create a **Secure note** named **"Engage Cloudflare origin certificate"**.
    Paste the **Origin Certificate** text into it, then add a line `----- KEY -----`, then paste the
    **Private Key** text below it. **Save.** Copy each box with its copy button, so you get every
@@ -817,8 +818,9 @@ That is correct: the app itself is installed in Part 9 (stage 6E).
    ```bash
    sudo nano /opt/zuvoora-engage/proxy/certs/origin-key.pem
    ```
-   Paste **only** the key part, from `-----BEGIN PRIVATE KEY-----` to
-   `-----END PRIVATE KEY-----`. Save (Ctrl+O, Enter) and exit (Ctrl+X).
+   Paste **only** the key part: from the line that says **BEGIN PRIVATE KEY** to the line that
+   says **END PRIVATE KEY**, including both of those lines with their dashes. Save (Ctrl+O, Enter)
+   and exit (Ctrl+X).
 6. Download Cloudflare's public ID card. It's public, and Claude checked it is genuine: valid
    until 2029.
    ```bash
