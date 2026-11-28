@@ -411,11 +411,28 @@ Remaining founder tasks (`PHASE6_FOUNDER_GUIDE.md`, "Where you are now"):
   - `ghcr.io/dr-nzube-anthony-anyanwu/zuvoora-engage-web-staging@sha256:04e4c30aebd5423109706959903635c9cbc84bcf09a79c3564b7f38f60c4e855`
   - `ghcr.io/dr-nzube-anthony-anyanwu/zuvoora-engage-web-production@sha256:6db99ae7751a610177b5cf0f23809a6fa2621ad9da47340188ee0cdd6dbc01c8`
 - **Note:** status polling hit the anonymous GitHub API limit (60 per hour). The GHCR registry check is the reliable alternative.
+- **Staging settings file:** created by the founder from the template (mode 600, root), with the two app secrets generated on the server. They were accidentally shown in the chat, so both were **regenerated before the first deploy** (nothing used them yet) and Bitwarden was updated. `preflight.sh staging` → `Preflight OK`.
+- **Staging deployed `v0.6.1`** (`deploy.sh staging <api digest> <web-staging digest>`): images pulled; worker, clamav (64 s), api and web all healthy. The script's own smoke checks passed: API ready (database reachable), widget loader served, API docs hidden, worker heartbeat, dashboard answering.
+- **Checked from outside (Claude, curl through Cloudflare):**
 
-**Next step: 6E (staging deployment).**
-- **Claude:** prepare release `v0.6.0`: push the tag, check the `images` run (which also verifies the GitHub variables) and its scans and digests.
-- **Founder:** make the 3 GHCR packages public (6.8b); fill `/opt/zuvoora-engage/staging/.env` from the template with Bitwarden values (Part 7); generate the app secrets on the server.
-- **Then:** `preflight.sh staging` → `deploy.sh staging <digests>`, then smoke tests and the walkthrough.
+  | Check | Result |
+  |---|---|
+  | `staging-api-engage` `/health/live`, `/health/ready` | 200, `{"status":"ready"}` |
+  | `/widget/v1/loader.js` (GET) | 200, `text/javascript`, `nosniff`, `no-store` (HEAD → 405, as designed) |
+  | `/docs`, `/openapi.json` | 404 |
+  | HSTS on the API | `max-age=63072000; includeSubDomains` |
+  | `http://` API | 301 → https |
+  | `staging-engage` dashboard | 302 → Cloudflare Access login |
+
+- **9.6:** the founder opened `staging-engage.zuvoora.com` in a private window, passed the Cloudflare Access email code and saw the public home page served from the VPS. The founder confirmed that the two exposed app secrets were regenerated before the deploy.
+
+- **9.7:** the founder had not kept the staging platform-admin credentials. Recovered in the staging SQL editor (guide 9.7): admin email looked up on the founder's screen, new password set with `extensions.crypt(…, gen_salt('bf'))` and saved in Bitwarden, query deleted. Sign-in with TOTP works on `staging-engage`: dashboard shows "Platform administrator" and "ZUVOORA Demo Eye Clinic · Owner" (Full ZUVOORA, usage 0).
+
+- **9.8 (founder-confirmed):** a demo request on the public staging site (made-up details, founder's inbox) produced the "New demo request" email through the worker and Resend, and appeared under platform tools → Demo requests. A small text document uploaded to the demo clinic was accepted (it passed the ClamAV scan, which fails closed).
+
+**6E complete (2026-11-28).** Staging runs release `v0.6.1` on the VPS behind Cloudflare, Caddy and Access; health, widget loader, hidden docs, worker heartbeat, email and upload scanning verified.
+
+**Next step: 6F (live integrations on staging):** Resend delivery events, Cal.com and Calendly webhooks against the staging API, the live AI evaluation within the OpenRouter limits, and the password recovery template (known issue).
 
 Environments and deployment
 - [ ] Separate staging and production (the existing cloud Supabase project becomes staging; a new production project).
@@ -448,6 +465,8 @@ Pilot
 - [ ] Pilot acceptance checklist complete; pilot clinics onboarded only after it is signed off.
 
 ## Known issues and notes
+
+- **Password recovery email (found 2026-11-28, fix before pilot):** Supabase's default recovery template links to `site_url` with tokens in the URL fragment, but the dashboard only accepts `/auth/confirm?token_hash=…&type=recovery`. A custom `recovery` template (like `invite.html`) plus a "Forgot password" link on `/login` is needed; until then staff password resets go through a platform admin.
 - CI on `6f67d54` (a docs-only commit) failed once in the Playwright E2E step. The job log needs a GitHub login, so the failing test is unknown. The same code passed on `e928de1` and on later commits, so it is treated as flaky. Watch for recurrence; if it happens again, capture the Playwright report artifact.
 - CI on `67353e5` failed in gitleaks: a false positive. The `private-key` rule matched the PEM header labels quoted in the founder-guide instructions; no key material was committed. The guide was reworded and the fingerprint added to `.gitleaksignore` with the reason (commit `2cddf55`). A local full-history scan is clean.
 - `14_usage.test.sql` failed once locally (email meter showed 3 instead of 1, tests 10–11) during the 3g work and passed in every later run, including a fresh stack; the cause was not found. Watch for recurrence.

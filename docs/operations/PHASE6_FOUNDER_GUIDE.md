@@ -31,6 +31,7 @@ accounts, your money or your secrets.
 | **6.2** Resend keys: `engage-staging-app`, `engage-production-app`, `engage-production-supabase-smtp` | 27 Nov |
 | OpenRouter credit limits confirmed | 27 Nov |
 | **Part 8 (stage 6D)** Web addresses and the padlock: origin certificate, Caddy running, 4 DNS records, "Engage strict TLS" rule, Authenticated Origin Pulls, Bot Fight Mode off, Cloudflare Access gate on the staging dashboard. Checked from outside. | 28 Nov |
+| **Part 9 (9.1–9.8, stage 6E)** Practice copy (staging) is online: packages public, settings file filled in, safety check passed, release v0.6.1 deployed, Claude checked it from outside, and you saw the home page behind the Cloudflare email code; admin login recovered and signed in with your 6-digit code; test email arrived and a test upload passed the virus scanner | 28 Nov |
 | **6.8a** GitHub repository variables (4 public values) | 27 Nov |
 | **6.7** Cal.com and Calendly test accounts | 27 Nov |
 | **6.6** UptimeRobot account (monitoring `zuvoora.com` for now) | 27 Nov |
@@ -44,7 +45,7 @@ accounts, your money or your secrets.
 
 | # | Task | Time | Where in this guide |
 |---|---|---|---|
-| — | **Stage 6D is complete.** Next: stage 6E, the practice copy (staging) goes online. Claude prepares the first release, then guides you. | | |
+| — | **Stage 6E is complete.** Next: stage 6F, connecting email events, calendars and the AI on the practice copy. Claude prepares it, then guides you. | | |
 
 **Later (Claude will tell you when):** official email addresses (6.2b, optional), making the
 GitHub images public (6.8b), putting secrets on the server (Part 7), web addresses and the
@@ -1011,6 +1012,9 @@ Supabase → project **"ZUVOORA ENGAGE"**. That is **staging**: check the name a
    ```
 5. Show those two lines **on your own screen only** and copy each value into Bitwarden ("Staging
    WIDGET_TOKEN_SECRET" and "Staging INTEGRATIONS_ENCRYPTION_KEY"). **Do not paste them here.**
+   When you later send Claude your terminal output, **leave these lines out**, or type `clear`
+   first. If they were shown by mistake, run the two lines in step 4 again (new values), update
+   Bitwarden, and only then deploy.
    ```bash
    sudo grep -E '^(WIDGET_TOKEN_SECRET|INTEGRATIONS_ENCRYPTION_KEY)=' /opt/zuvoora-engage/staging/.env
    ```
@@ -1055,6 +1059,49 @@ puts things back by itself. Send Claude the whole output.
 #### 9.6 — Look at it 🎉
 Private window → `https://staging-engage.zuvoora.com` → Cloudflare asks for your email code → now
 you see the **real ZUVOORA Engage** page.
+
+#### 9.7 — Sign in as the ZubeVision admin (5 min)
+You already have this account on the practice database (made on 21 Nov, with two-factor login).
+1. In the same private window, click **Sign in** (top right).
+2. Enter **your admin email and password** (from Bitwarden).
+3. Enter the **6-digit code** from your authenticator app.
+4. You should see the platform console (clinics and plans).
+
+If the password is not accepted, do **not** keep trying: tell Claude. A reset is easy.
+
+**Forgot the admin email or password? (staging only)** In Supabase, project **"ZUVOORA ENGAGE"**
+(staging, check the name), open **SQL Editor → New query** and run these one at a time:
+1. See which email is the admin (on your screen only):
+   `select u.email from public.platform_admins p join auth.users u on u.id = p.user_id;`
+2. Bitwarden → generate a new password (20+ characters) → save it with that email as
+   "Engage STAGING platform admin". Then set it:
+   `update auth.users set encrypted_password = extensions.crypt('PASTE_HERE', extensions.gen_salt('bf')), updated_at = now() where id in (select user_id from public.platform_admins);`
+   It should say **1 row** affected. **Delete the query** afterwards (it contains the password).
+3. No 6-digit code any more (authenticator entry lost)? Remove the old two-factor entry, then sign
+   in and set it up again at the prompt:
+   `delete from auth.mfa_factors where user_id in (select user_id from public.platform_admins);`
+
+#### 9.8 — First test: email and virus scanning (10 min)
+Made-up details only. This checks that the server can send email and scan uploads.
+
+**A. Demo request email**
+1. In a **normal** (not private) window, open `https://staging-engage.zuvoora.com`. Cloudflare
+   asks for the email code again; that is fine.
+2. Click **Request a demo**. Fill in a made-up name and clinic ("Test Person", "Test Eye
+   Clinic"), **your Gmail** as the email, tick the consent box and send.
+3. Within about a minute, an email "New demo request" should arrive in your Gmail (check Spam
+   too).
+4. In the private window (signed in as admin): **Open platform tools → Demo requests**. The test
+   request is listed.
+
+**B. Document upload (virus scanner)**
+1. On your laptop, open Notepad and type: `Test clinic opening hours: Monday to Friday 9am to 5pm.`
+   Save it as `test-hours.txt`.
+2. In the private window: **ZUVOORA Demo Eye Clinic → Documents → upload** `test-hours.txt`.
+3. It should be accepted and show as waiting for review. (Every upload passes through the virus
+   scanner first; if the scanner were down, the upload would be refused.)
+
+Tell Claude what happened in A and B. Screenshots are fine; hide your email address.
 
 ---
 
