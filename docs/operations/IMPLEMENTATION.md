@@ -398,6 +398,11 @@ Remaining founder tasks (`PHASE6_FOUNDER_GUIDE.md`, "Where you are now"):
 
 **6D complete (2026-11-28).** Edge chain: Cloudflare (proxied, strict per-host TLS, Global AOP, Bot Fight Mode off, Access on the staging dashboard) → Caddy (Origin CA certificate, client-certificate enforcement, HTTP→HTTPS redirect) → edge networks, awaiting the application containers.
 
+**6E progress (2026-11-28):**
+- **CI** green on `2cddf55` (both workflows). Release tag **`v0.6.0`** (annotated) pushed on that commit, which started the `images` workflow.
+- **Staging Supabase Auth URLs** set through a separate `D:	echnologies\engage-staging-ops` work directory (linked to staging; same method as production): `site_url` and the redirect are now `https://staging-engage.zuvoora.com`, and the storage file limit is 10 MiB. The diff was reviewed first; sign-ups, MFA and the password rules were already correct; SMTP was not touched.
+- **Env templates:** the non-secret values (project URL, `engage_api.<ref>` user and the eu-west-1 pooler host) are filled in, so only real secrets remain as `REPLACE…`.
+
 **Next step: 6E (staging deployment).**
 - **Claude:** prepare release `v0.6.0`: push the tag, check the `images` run (which also verifies the GitHub variables) and its scans and digests.
 - **Founder:** make the 3 GHCR packages public (6.8b); fill `/opt/zuvoora-engage/staging/.env` from the template with Bitwarden values (Part 7); generate the app secrets on the server.
@@ -434,6 +439,8 @@ Pilot
 - [ ] Pilot acceptance checklist complete; pilot clinics onboarded only after it is signed off.
 
 ## Known issues and notes
+- CI on `6f67d54` (a docs-only commit) failed once in the Playwright E2E step. The job log needs a GitHub login, so the failing test is unknown. The same code passed on `e928de1` and on later commits, so it is treated as flaky. Watch for recurrence; if it happens again, capture the Playwright report artifact.
+- CI on `67353e5` failed in gitleaks: a false positive. The `private-key` rule matched the PEM header labels quoted in the founder-guide instructions; no key material was committed. The guide was reworded and the fingerprint added to `.gitleaksignore` with the reason (commit `2cddf55`). A local full-history scan is clean.
 - `14_usage.test.sql` failed once locally (email meter showed 3 instead of 1, tests 10–11) during the 3g work and passed in every later run, including a fresh stack; the cause was not found. Watch for recurrence.
 - pytest emits a Starlette deprecation warning recommending `httpx2` for `TestClient` (non-blocking).
 - ESLint 9 is reported as no longer supported upstream; upgrade when `eslint-config-next` supports ESLint 10.
